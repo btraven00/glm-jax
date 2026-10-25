@@ -19,6 +19,8 @@ from __future__ import annotations
 from functools import partial
 from typing import NamedTuple, Optional
 
+import os
+
 import jax
 import jax.numpy as jnp
 from jax import lax
@@ -83,6 +85,14 @@ _SMALL_P = 12
 _FIRST_PASS_ITER = 12
 _STRAGGLER_BUCKET = 256
 _CPU_CHUNK_ELEMS = 320_000
+
+
+def _n_cores():
+    """Cores this process may run on (honours taskset / SLURM cpusets)."""
+    try:
+        return len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        return os.cpu_count() or 1
 
 
 def _spd_solve(A, b):
@@ -282,10 +292,11 @@ def fit_glm(
     Y, X, offset, weights, phi, beta0, use_beta0 = _broadcast_inputs(
         Y, X, offset, weights, phi, beta0
     )
-    if batch_size is None and jax.default_backend() == "cpu":
-        # ponytail: cache blocking. One gene chunk ~ 2.5 MB of f64 keeps the per-
-        # iteration intermediates in L2/L3 (1.4x on 10k cells); bulk-sized n gets
-        # one chunk. GPUs want the whole batch for parallelism.
+    if batch_size is None and jax.default_backend() == "cpu" and _n_cores() == 1:
+        # ponytail: cache blocking for a single core. One gene chunk ~ 2.5 MB of f64
+        # keeps the per-iteration intermediates in L2/L3 (1.4x on 10k cells);
+        # bulk-sized n gets one chunk. Chunks run sequentially, so with several
+        # cores XLA's parallelism over genes is worth more; GPUs want the whole batch.
         chunk = max(1, _CPU_CHUNK_ELEMS // Y.shape[1])
         batch_size = chunk if chunk < Y.shape[0] else None
     res = _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family,
