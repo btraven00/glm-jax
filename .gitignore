@@ -10,3 +10,4 @@ evolve/log.jsonl
 scratch/
 evolve/candidates/
 evolve/reference.npz
+evolve/best.py
