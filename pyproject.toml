@@ -32,7 +32,11 @@ jax = { version = "*", extras = ["cuda12"] }
 default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 gpu = { features = ["test", "cuda"] }
+evolve = { features = ["test", "evolve"] }
 
 [tool.pixi.tasks]
 test = "pytest -q"
 bench = "python examples/benchmark.py"
+
+[tool.pixi.feature.evolve.pypi-dependencies]
+anthropic = "*"
