@@ -6,10 +6,10 @@
 # method,N,G,compile_s,fit_s,max_abs_coef_diff_vs_jax,median_iter.
 
 suppressPackageStartupMessages({
-  library(pjrt)
   library(glmGamPoi)
   library(MASS)
 })
+HAVE_PJRT <- requireNamespace("pjrt", quietly = TRUE)  # pjrt needs protoc to build; optional
 
 d <- commandArgs(TRUE)[1]
 dims <- scan(file.path(d, "dims.txt"), quiet = TRUE)  # N G p, written by sc_bench.py
@@ -34,12 +34,15 @@ if (R_CORES > 1) {
 }
 
 # glm-jax kernel through pjrt
-t_comp <- system.time(exe <- pjrt_compile(pjrt_program(path = file.path(d, "fit.mlir"), format = "mlir")))[["elapsed"]]
-bufs <- list(pjrt_buffer(Y, dtype = DT), pjrt_buffer(X, dtype = DT),
-             pjrt_buffer(off, dtype = DT), pjrt_buffer(rep(PHI, G), dtype = DT))
-run <- function() as_array(do.call(pjrt_execute, c(list(exe), bufs))[[1]])
-coef <- run()
-row(paste0("pjrt_", DT), t_comp, med3(run), max(abs(coef - ref)))
+if (HAVE_PJRT) {
+  library(pjrt)
+  t_comp <- system.time(exe <- pjrt_compile(pjrt_program(path = file.path(d, "fit.mlir"), format = "mlir")))[["elapsed"]]
+  bufs <- list(pjrt_buffer(Y, dtype = DT), pjrt_buffer(X, dtype = DT),
+               pjrt_buffer(off, dtype = DT), pjrt_buffer(rep(PHI, G), dtype = DT))
+  run <- function() as_array(do.call(pjrt_execute, c(list(exe), bufs))[[1]])
+  coef <- run()
+  row(paste0("pjrt_", DT), t_comp, med3(run), max(abs(coef - ref)))
+}
 
 # glmGamPoi at the same fixed dispersion: the user-facing call...
 t_ggp <- system.time(fit <- glm_gp(Y, design = X, offset = off, size_factors = FALSE,
