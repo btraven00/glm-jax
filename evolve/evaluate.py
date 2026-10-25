@@ -46,7 +46,7 @@ np.savez(sys.argv[1], apl=apl, argmax=apl.argmax(1))
 """
 TIMER = DATA + """
 ref = np.load(sys.argv[1])
-f = jax.jit(lambda Y, X, g, o: gj.apl_grid(Y, X, g, offset=o))
+f = lambda Y, X, g, o: gj.apl_grid(Y, X, g, offset=o)  # eager: apl_grid jits internally and needs concrete Y
 apl = np.asarray(jax.block_until_ready(f(Y, X, grid, offset)))
 err = float(np.max(np.abs(apl - ref["apl"]))); agree = float(np.mean(apl.argmax(1) == ref["argmax"]))
 if not (apl.shape == ref["apl"].shape and np.all(np.isfinite(apl)) and err < 0.05 and agree == 1.0):

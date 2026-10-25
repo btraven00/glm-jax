@@ -48,7 +48,7 @@ ref, c0, r0 = timed(per_phi, Y, X, grid, offset)
 print(f"{jax.default_backend()},per_phi_refit,{G},{n},{K},{c0:.2f},{r0:.3f},0")
 
 for name, steps in (("scan_converged", None), ("scan_3steps", 3)):
-    f = jax.jit(lambda Y, X, grid, offset: gj.apl_grid(Y, X, grid, offset=offset, steps=steps))
+    f = lambda Y, X, grid, offset: gj.apl_grid(Y, X, grid, offset=offset, steps=steps)  # eager: needs concrete Y
     apl, c1, r1 = timed(f, Y, X, grid, offset)
     agree = float(jnp.mean(jnp.argmax(apl, 1) == jnp.argmax(ref, 1)))
     print(f"{jax.default_backend()},{name},{G},{n},{K},{c1:.2f},{r1:.3f},{float(jnp.max(jnp.abs(apl - ref))):.2e},argmax_agree={agree:.4f}")
