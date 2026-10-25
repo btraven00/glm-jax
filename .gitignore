@@ -7,3 +7,6 @@ __pycache__/
 .pixi/*
 !.pixi/config.toml
 evolve/log.jsonl
+scratch/
+evolve/candidates/
+evolve/reference.npz

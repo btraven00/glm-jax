@@ -266,7 +266,15 @@ def fit_glm(
     phi : family parameter per feature, e.g. NB dispersion, () or (G,).
     beta0 : optional warm start (p,) or (G, p).
     batch_size : fit this many features at a time (caps memory at large n);
-        ``None`` fits all features in one batch.
+        ``None`` fits all features in one batch (CPU: cache-sized chunks).
+
+    Notes
+    -----
+    ``phi=None`` means phi = 0, which with the default NB family is a Poisson fit.
+    Features are fit in two passes: 12 iterations for all, then the remaining
+    iterations for the max(256, G/8) least-converged ones. On very hard data
+    (low depth, many separated features) more than that may come back with
+    ``converged=False`` after 12 iterations; check ``converged.mean()``.
     """
     squeeze = jnp.ndim(Y) == 1
     if squeeze:

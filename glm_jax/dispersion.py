@@ -126,8 +126,9 @@ def _polish(Y, X, offset, weights, theta, beta, lo, hi, max_step, steps, newton,
         return _apl_single(y, X, o, w, phi, _fixed_steps(y, X, o, w, phi, b, steps, ridge))
 
     g_fn = jax.grad(apl_theta)
-    h_fn = jax.jacfwd(g_fn)
-    gh = jax.vmap(lambda th, y, o, w, b: (g_fn(th, y, o, w, b), h_fn(th, y, o, w, b)),
+    # theta is a scalar, so one JVP of the gradient returns (g, h) at once:
+    # half the cost of evaluating grad and jacfwd(grad) separately.
+    gh = jax.vmap(lambda th, y, o, w, b: jax.jvp(lambda t: g_fn(t, y, o, w, b), (th,), (jnp.ones_like(th),)),
                   in_axes=(None if common else 0, 0, 0, 0, 0))
 
     for _ in range(newton):

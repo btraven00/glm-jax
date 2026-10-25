@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import jax
 import jax.numpy as jnp
 from jax.scipy.special import gammaln, xlogy
 
@@ -67,10 +68,10 @@ class LogitLink(Link):
         return jnp.log(mu) - jnp.log1p(-mu)
 
     def inverse(self, eta):
-        return 1.0 / (1.0 + jnp.exp(-eta))
+        return jax.nn.sigmoid(eta)  # stable for large |eta|
 
     def mu_eta(self, eta):
-        p = 1.0 / (1.0 + jnp.exp(-eta))
+        p = jax.nn.sigmoid(eta)
         return p * (1.0 - p)
 
 

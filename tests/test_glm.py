@@ -179,3 +179,16 @@ def test_two_pass_straggler_fit_matches_single_gene_fits():
     for g in (0, 17, 299):
         one = gj.fit_glm(Y[g], X, offset=offset, phi=0.1)
         np.testing.assert_allclose(res.coef[g], one.coef, atol=1e-7)
+
+
+def test_apl_all_zero_row_finite_and_grid_tagwise_is_argmax():
+    Y, X, offset, _ = nb_data(G=60, n=12, phi=0.2, seed=11)
+    grid = np.logspace(-3, 0.5, 15)
+    est = gj.estimate_dispersion_grid(Y, X, offset=offset, phi_grid=grid)
+    Y0 = np.vstack([Y, np.zeros((1, Y.shape[1]))])  # an all-zero feature
+    est0 = gj.estimate_dispersion_grid(Y0, X, offset=offset, phi_grid=grid)
+    assert np.all(np.isfinite(est0["apl"])) and np.all(np.isfinite(est0["tagwise"]))
+    np.testing.assert_allclose(est0["common"], est["common"], rtol=0.05)
+    # grid-only tagwise is exactly the argmax of the APL matrix
+    g0 = gj.estimate_dispersion_grid(Y, X, offset=offset, phi_grid=grid, newton=0)
+    np.testing.assert_array_equal(np.asarray(g0["tagwise"]), grid[np.argmax(np.asarray(g0["apl"]), axis=1)])
