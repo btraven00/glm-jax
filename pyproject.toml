@@ -25,9 +25,13 @@ python = ">=3.10"
 [tool.pixi.pypi-dependencies]
 glm-jax = { path = ".", editable = true }
 
+[tool.pixi.feature.cuda.pypi-dependencies]
+jax = { version = "*", extras = ["cuda12"] }
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+gpu = { features = ["test", "cuda"] }
 
 [tool.pixi.tasks]
 test = "pytest -q"

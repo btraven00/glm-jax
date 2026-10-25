@@ -120,3 +120,62 @@ def test_warm_start_same_answer():
     b = gj.fit_glm(Y, X, offset=offset, phi=0.1, beta0=a.coef)
     np.testing.assert_allclose(a.coef, b.coef, atol=1e-7)
     assert np.all(b.n_iter <= 2)
+
+
+def test_batch_size_same_answer():
+    Y, X, offset, _ = nb_data(G=53)  # 53 not divisible by 16: exercises the remainder chunk
+    a = gj.fit_glm(Y, X, offset=offset, phi=0.1)
+    b = gj.fit_glm(Y, X, offset=offset, phi=0.1, batch_size=16)
+    np.testing.assert_allclose(a.coef, b.coef, atol=1e-12)
+    np.testing.assert_array_equal(a.converged, b.converged)
+
+
+def test_float32_inputs_fit_in_float32():
+    Y, X, offset, _ = nb_data(G=20)
+    a = gj.fit_glm(Y, X, offset=offset, phi=0.1)
+    b = gj.fit_glm(Y.astype(np.float32), X.astype(np.float32), offset=offset, phi=0.1, tol=1e-6, beta_tol=1e-6)
+    assert b.coef.dtype == np.float32
+    np.testing.assert_allclose(a.coef, b.coef, atol=1e-3)
+
+
+def test_apl_grid_matches_independent_refits():
+    Y, X, offset, _ = nb_data(G=40, n=12, phi=0.2, seed=5)
+    grid = np.logspace(-2, 0.5, 6)
+    ref = np.stack([gj.adjusted_profile_loglik(Y, X, g, offset=offset) for g in grid], axis=1)
+    apl = gj.apl_grid(Y, X, grid, offset=offset, steps=None)
+    np.testing.assert_allclose(apl, ref, rtol=1e-6, atol=1e-5)
+    # default: 3 fixed warm-started steps per grid point; close, same argmax
+    fast = gj.apl_grid(Y, X, grid, offset=offset)
+    assert np.all(np.isfinite(fast))
+    assert np.max(np.abs(fast - ref)) < 0.05
+    np.testing.assert_array_equal(np.argmax(fast, axis=1), np.argmax(ref, axis=1))
+    # portable export: no LAPACK custom calls in the StableHLO
+    txt = jax.jit(lambda Y, X, g, o: gj.apl_grid(Y, X, g, offset=o)).lower(Y, X, grid, offset).as_text()
+    assert "custom_call" not in txt
+
+
+def test_dispersion_newton_polish_beats_coarse_grid():
+    Y, X, offset, _ = nb_data(G=200, n=20, phi=0.2, seed=3)
+    fine_grid = np.logspace(-2, 0.5, 400)
+    fine = gj.apl_grid(Y, X, fine_grid, offset=offset, steps=None)
+    log_phi_fine = np.log(fine_grid[np.argmax(fine, axis=1)])
+    coarse = gj.estimate_dispersion_grid(Y, X, offset=offset, newton=0)
+    polished = gj.estimate_dispersion_grid(Y, X, offset=offset)  # newton=2
+    err_coarse = np.abs(np.log(coarse["tagwise"]) - log_phi_fine)
+    err_pol = np.abs(np.log(polished["tagwise"]) - log_phi_fine)
+    assert np.all(np.isfinite(polished["tagwise"]))
+    assert np.median(err_pol) < 0.5 * np.median(err_coarse)
+    assert 0.12 < float(polished["common"]) < 0.3
+    # polish stays within one grid spacing of its start
+    spacing = np.max(np.diff(np.log(np.asarray(coarse["phi_grid"]))))
+    assert np.all(np.abs(np.log(polished["tagwise"]) - np.log(coarse["tagwise"])) <= 2 * spacing + 1e-9)
+
+
+def test_two_pass_straggler_fit_matches_single_gene_fits():
+    # G > _STRAGGLER_BUCKET triggers the capped first pass + bucket refit
+    Y, X, offset, _ = nb_data(G=300, n=12, seed=7)
+    res = gj.fit_glm(Y, X, offset=offset, phi=0.1)
+    assert np.all(res.converged)
+    for g in (0, 17, 299):
+        one = gj.fit_glm(Y[g], X, offset=offset, phi=0.1)
+        np.testing.assert_allclose(res.coef[g], one.coef, atol=1e-7)

@@ -79,6 +79,10 @@ def _small_chol_solve(L, b):
 
 
 _SMALL_P = 12
+# ponytail: fixed straggler policy; expose if a dataset needs a different split
+_FIRST_PASS_ITER = 12
+_STRAGGLER_BUCKET = 256
+_CPU_CHUNK_ELEMS = 320_000
 
 
 def _spd_solve(A, b):
@@ -139,9 +143,14 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
         dev_new = dev_of(beta_new)
 
         # Halve the step while the deviance increases (or is non-finite).
+        # Tolerance scales with the dtype: f32 deviance sums carry ~1e-5
+        # relative rounding noise, which at a fixed 1e-10 read as increases
+        # and triggered max_halving halvings every iteration (10x slower).
+        htol = max(1e-10, 1e3 * float(jnp.finfo(dtype).eps))
+
         def h_cond(s):
             _, d, k = s
-            bad = jnp.logical_or(~jnp.isfinite(d), d > dev * (1 + 1e-10) + 1e-10)
+            bad = jnp.logical_or(~jnp.isfinite(d), d > dev * (1 + htol) + htol)
             return jnp.logical_and(bad, k < max_halving)
 
         def h_body(s):
@@ -180,8 +189,10 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
 def _broadcast_inputs(Y, X, offset, weights, phi, beta0):
     Y = jnp.asarray(Y)
     X = jnp.asarray(X)
+    # Floating Y/X keep their precision (f32 in -> f32 fit); integer counts get
     # float64 when jax_enable_x64 is on (recommended), float32 otherwise.
-    dtype = jax.dtypes.canonicalize_dtype(jnp.float64)
+    floats = [a.dtype for a in (Y, X) if jnp.issubdtype(a.dtype, jnp.floating)]
+    dtype = jnp.result_type(*floats) if floats else jax.dtypes.canonicalize_dtype(jnp.float64)
     Y = Y.astype(dtype)
     X = X.astype(dtype)
     G, n = Y.shape
@@ -194,14 +205,37 @@ def _broadcast_inputs(Y, X, offset, weights, phi, beta0):
     return Y, X, offset, weights, phi, beta0, use_beta0
 
 
-@partial(jax.jit, static_argnames=("family", "max_iter", "tol", "beta_tol", "ridge", "max_halving", "use_beta0"))
+@partial(jax.jit, static_argnames=("family", "max_iter", "tol", "beta_tol", "ridge", "max_halving", "use_beta0",
+                                   "batch_size"))
 def _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family, max_iter, beta_tol,
-                 tol, ridge, max_halving):
-    kernel = partial(_fit_single, family=family, max_iter=max_iter, tol=tol, beta_tol=beta_tol,
-                     ridge=ridge, max_halving=max_halving)
-    return jax.vmap(kernel, in_axes=(0, None, 0, 0, 0, 0, None))(
-        Y, X, offset, weights, phi, beta0, use_beta0
-    )
+                 tol, ridge, max_halving, batch_size=None):
+    def run(Y, offset, weights, phi, beta0, use_beta0, max_iter, chunk):
+        kernel = partial(_fit_single, family=family, max_iter=max_iter, tol=tol, beta_tol=beta_tol,
+                         ridge=ridge, max_halving=max_halving)
+        if not chunk or batch_size is None:
+            return jax.vmap(kernel, in_axes=(0, None, 0, 0, 0, 0, None))(
+                Y, X, offset, weights, phi, beta0, use_beta0
+            )
+        # vmap over chunks of batch_size features: peak memory ~ batch_size * n * p
+        return lax.map(lambda a: kernel(a[0], X, a[1], a[2], a[3], a[4], use_beta0),
+                       (Y, offset, weights, phi, beta0), batch_size=batch_size)
+
+    # Under vmap every feature waits for the slowest: on real data the median
+    # gene needs 6 iterations and one in a thousand needs 49.  So: a capped
+    # first pass for everyone, then the remaining iterations for a fixed-size
+    # bucket of the least-converged features (static shapes, still one program).
+    bucket = max(_STRAGGLER_BUCKET, Y.shape[0] // 8)  # pass 2 costs at most ~40% of pass 1
+    if Y.shape[0] <= bucket or max_iter <= _FIRST_PASS_ITER:
+        return run(Y, offset, weights, phi, beta0, use_beta0, max_iter, True)
+    res = run(Y, offset, weights, phi, beta0, use_beta0, _FIRST_PASS_ITER, True)
+    idx = jnp.argsort(res.converged)[:bucket]  # unconverged first
+    res2 = run(Y[idx], offset[idx], weights[idx], phi[idx], res.coef[idx], True,
+               max_iter - _FIRST_PASS_ITER, False)
+    res2 = res2._replace(n_iter=res2.n_iter + res.n_iter[idx])
+    redo = ~res.converged[idx]
+    return jax.tree_util.tree_map(
+        lambda a, b: a.at[idx].set(jnp.where(redo.reshape((-1,) + (1,) * (b.ndim - 1)), b, a[idx])),
+        res, res2)
 
 
 def fit_glm(
@@ -218,6 +252,7 @@ def fit_glm(
     beta_tol: float = 1e-8,
     ridge: float = 1e-10,
     max_halving: int = 30,
+    batch_size: int | None = None,
 ) -> GLMResult:
     """Fit one GLM per row of ``Y`` with a shared design ``X``.
 
@@ -230,6 +265,8 @@ def fit_glm(
     weights : prior weights, (n,) or (G, n).
     phi : family parameter per feature, e.g. NB dispersion, () or (G,).
     beta0 : optional warm start (p,) or (G, p).
+    batch_size : fit this many features at a time (caps memory at large n);
+        ``None`` fits all features in one batch.
     """
     squeeze = jnp.ndim(Y) == 1
     if squeeze:
@@ -237,8 +274,14 @@ def fit_glm(
     Y, X, offset, weights, phi, beta0, use_beta0 = _broadcast_inputs(
         Y, X, offset, weights, phi, beta0
     )
+    if batch_size is None and jax.default_backend() == "cpu":
+        # ponytail: cache blocking. One gene chunk ~ 2.5 MB of f64 keeps the per-
+        # iteration intermediates in L2/L3 (1.4x on 10k cells); bulk-sized n gets
+        # one chunk. GPUs want the whole batch for parallelism.
+        chunk = max(1, _CPU_CHUNK_ELEMS // Y.shape[1])
+        batch_size = chunk if chunk < Y.shape[0] else None
     res = _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family,
-                       max_iter, beta_tol, tol, ridge, max_halving)
+                       max_iter, beta_tol, tol, ridge, max_halving, batch_size)
     if squeeze:
         res = jax.tree_util.tree_map(lambda a: a[0], res)
     return res
