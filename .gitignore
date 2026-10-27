@@ -6,8 +6,8 @@ __pycache__/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
-evolve/log.jsonl
+evolve/log*.jsonl
 scratch/
 evolve/candidates/
-evolve/reference.npz
-evolve/best.py
+evolve/reference*.npz
+evolve/best*.py

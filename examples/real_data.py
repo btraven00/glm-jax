@@ -2,6 +2,7 @@
 
     python examples/real_data.py kang IR_CTRL IR_STIM OUT.npz [MAX_CELLS ...]
     python examples/real_data.py hao RAW_TAR META_CSV_GZ OUT.npz [MAX_CELLS ...]
+    python examples/real_data.py pbmc68k MATRICES_TAR_GZ ANNOTATION_TSV OUT.npz [MAX_CELLS ...]
 
 kang: two ``scx snapshot`` dirs of the 10x HDF5 files (CSR NPY + index txt);
       design = intercept + stim (p = 2).
@@ -77,6 +78,23 @@ def hao(tar, meta_gz):
     return C, np.column_stack(cols), names
 
 
+def pbmc68k(tar, annot_tsv):
+    """10x Fresh 68k PBMCs (Zheng 2017): MEX v1 tar + 68k_pbmc_barcodes_annotation.tsv.
+
+    design = intercept + 10 of the 11 bulk-correlation cell types (p = 11).
+    """
+    pre = "filtered_matrices_mex/hg19/"
+    C = sp.csr_matrix(mmread(io.BytesIO(tar_member(tar, pre + "matrix.mtx"))).T)  # cells x genes
+    barcodes = tar_member(tar, pre + "barcodes.tsv").decode().split()
+    with open(annot_tsv) as fh:
+        ct = {r["barcodes"]: r["celltype"] for r in csv.DictReader(fh, delimiter="\t")}
+    assert len(barcodes) == C.shape[0] and set(barcodes) == set(ct)
+    lab = np.array([ct[b] for b in barcodes])
+    levels = sorted(set(lab))
+    cols = [np.ones(C.shape[0])] + [(lab == l).astype(float) for l in levels[1:]]
+    return C, np.column_stack(cols), ["intercept"] + [f"celltype={l}" for l in levels[1:]]
+
+
 def finish(C, X, names, out, max_cells):
     if max_cells and C.shape[0] > max_cells:
         idx = np.sort(np.random.default_rng(0).choice(C.shape[0], max_cells, replace=False))
@@ -99,6 +117,6 @@ def finish(C, X, names, out, max_cells):
 if __name__ == "__main__":
     kind, a, b, out = sys.argv[1:5]
     sizes = [int(s) for s in sys.argv[5:]] or [0]
-    C, X, names = kang(a, b) if kind == "kang" else hao(a, b)
+    C, X, names = {"kang": kang, "hao": hao, "pbmc68k": pbmc68k}[kind](a, b)
     for n in sizes:
         finish(C, X, names, out if len(sizes) == 1 else out.replace(".npz", f"_{n}.npz"), n)

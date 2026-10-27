@@ -21,10 +21,12 @@ from typing import NamedTuple, Optional
 
 import os
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 from jax import lax
 from jax.scipy.linalg import cho_factor, cho_solve
+from jax.scipy.special import xlogy
 
 from .families import Family, NegativeBinomial
 
@@ -49,6 +51,28 @@ def _working(family: Family, y, eta, w, phi):
     W = w * d**2 / var
     z = eta + (y - mu) / d
     return W, z, mu
+
+
+def _newton_terms(family: Family, y, eta, w, phi):
+    """Observed-information weights and score terms per observation.
+
+    With g(eta) = mu_eta / V(mu), the score is s = w (y - mu) g and the
+    observed information is w (d g - (y - mu) g').  For canonical links
+    g' = 0, so this is the same as Fisher scoring; for NB-log it gives
+    w mu (1 + phi y) / (1 + phi mu)^2.  Where the observed weight is not
+    positive we use the Fisher weight there, so A stays SPD.
+    """
+    def g_of(e):
+        mu = family.clip_mu(family.link.inverse(e))
+        return family.link.mu_eta(e) / family.variance(mu, phi), mu
+
+    (g, mu), (dg, _) = jax.jvp(g_of, (eta,), (jnp.ones_like(eta),))
+    d = family.link.mu_eta(eta)
+    r = w * (y - mu)
+    W_fisher = w * d * g
+    W_obs = W_fisher - r * dg
+    W = jnp.where(W_obs > 0, W_obs, W_fisher)
+    return W, r * g
 
 
 def _small_chol(A):
@@ -82,7 +106,7 @@ def _small_chol_solve(L, b):
 
 _SMALL_P = 12
 # ponytail: fixed straggler policy; expose if a dataset needs a different split
-_FIRST_PASS_ITER = 12
+_FIRST_PASS_ITER = 6
 _STRAGGLER_BUCKET = 256
 _CPU_CHUNK_ELEMS = 320_000
 
@@ -110,15 +134,70 @@ def _spd_inv(A):
     return cho_solve(cho_factor(A, lower=True), jnp.eye(p, dtype=A.dtype))
 
 
-def _wls(X, W, z, ridge):
+def _xtwx(X, W, ridge):
+    """X^T diag(W) X + ridge I from the p(p+1)/2 unique column products.
+
+    X is shared, so the products are batch-invariant under vmap and the
+    batched information matrix is one (G, n) @ (n, q) GEMM that reads W
+    once, instead of a (G, p, n) X^T*W intermediate and p^2 batched dots.
+    """
     p = X.shape[1]
-    XtW = X.T * W
-    A = XtW @ X + ridge * jnp.eye(p, dtype=X.dtype)
-    return _spd_solve(A, XtW @ z)
+    i, j = np.triu_indices(p)
+    flat = W @ (X[:, i] * X[:, j])
+    A = jnp.zeros((p, p), X.dtype).at[i, j].set(flat).at[j, i].set(flat)
+    return A + ridge * jnp.eye(p, dtype=X.dtype)
+
+
+def _wls(X, W, z, ridge):
+    return _spd_solve(_xtwx(X, W, ridge), X.T @ (W * z))
 
 
 def _deviance(family, y, mu, w, phi):
     return jnp.sum(w * family.unit_deviance(y, mu, phi))
+
+
+def _nb_split(y, mu, lm, phi):
+    """NB unit deviance / 2 as (y-only part, mu-dependent part); phi = 0 is Poisson."""
+    pos = phi > 0
+    inv_phi = 1.0 / jnp.where(pos, phi, 1.0)
+    const = xlogy(y, y) - jnp.where(pos, (y + inv_phi) * jnp.log1p(phi * y), y)
+    var = jnp.where(pos, (y + inv_phi) * jnp.log1p(phi * mu), mu) - y * lm
+    return const, var
+
+
+def _nb_log_bounds(family, dtype):
+    """(log mu_min, log mu_max) if the family's deviance matches the NB-log split, else None.
+
+    Checked numerically against family.unit_deviance at trace time, so a
+    family whose formula or clipping differs just takes the generic path.
+    f64 only: the split subtracts per-gene sums, too noisy for f32 step halving.
+    """
+    if dtype != jnp.float64 or not isinstance(family, NegativeBinomial):
+        return None
+    try:
+        with jax.ensure_compile_time_eval():
+            f64 = jnp.float64
+            e = jnp.array([-20.0, -3.0, 0.0, 2.0, 8.0], f64)
+            if not np.allclose(family.link.inverse(e), np.exp(np.asarray(e)), rtol=1e-13, atol=0):
+                return None
+            lo = float(family.clip_mu(jnp.asarray(0.0, f64)))
+            hi = float(family.clip_mu(jnp.asarray(1e300, f64)))
+            loglo = float(np.log(lo)) if lo > 0 else -np.inf
+            loghi = float(np.log(hi)) if np.isfinite(hi) else np.inf
+            mu = family.clip_mu(jnp.exp(e))
+            lm = jnp.clip(e, loglo, loghi)
+            if not np.allclose(np.log(np.asarray(mu)), np.asarray(lm), rtol=1e-13, atol=1e-13):
+                return None
+            y = jnp.array([0.0, 1.0, 3.0, 50.0, 7.0], f64)
+            for ph in (0.0, 0.1, 2.0):
+                ph = jnp.asarray(ph, f64)
+                c, v = _nb_split(y, mu, lm, ph)
+                ref = family.unit_deviance(y, mu, ph)
+                if not np.allclose(np.asarray(ref), 2 * np.asarray(c + v), rtol=1e-10, atol=1e-10):
+                    return None
+    except Exception:
+        return None
+    return loglo, loghi
 
 
 def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, beta_tol,
@@ -133,14 +212,28 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
     beta_from_y = _wls(X, W, z - offset, ridge)
     beta = jnp.where(use_beta0, beta0, beta_from_y)
 
-    def dev_of(b):
-        eta = X @ b + offset
-        mu = family.clip_mu(family.link.inverse(eta))
-        return _deviance(family, y, mu, w, phi)
+    bounds = _nb_log_bounds(family, dtype)
+    if bounds is None:
+        def dev_of(b):
+            eta = X @ b + offset
+            mu = family.clip_mu(family.link.inverse(eta))
+            return _deviance(family, y, mu, w, phi)
+    else:
+        # y-only deviance terms once per fit; each evaluation then needs only
+        # exp(eta) and log1p(phi mu) per cell (log mu = eta, clipped as mu is).
+        loglo, loghi = bounds
+        c_y, _ = _nb_split(y, y, jnp.zeros_like(y), phi)
+        dev_const = jnp.sum(w * c_y)
+
+        def dev_of(b):
+            eta = X @ b + offset
+            mu = family.clip_mu(jnp.exp(eta))
+            _, v = _nb_split(y, mu, jnp.clip(eta, loglo, loghi), phi)
+            return 2.0 * (dev_const + jnp.sum(w * v))
 
     dev = dev_of(beta)
 
-    # ---- main IRLS loop with step halving ----------------------------------
+    # ---- main Newton loop with step halving --------------------------------
     def cond(state):
         _, _, it, conv = state
         return jnp.logical_and(it < max_iter, jnp.logical_not(conv))
@@ -148,8 +241,11 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
     def body(state):
         beta, dev, it, _ = state
         eta = X @ beta + offset
-        W, z, _ = _working(family, y, eta, w, phi)
-        beta_new = _wls(X, W, z - offset, ridge)
+        W, s = _newton_terms(family, y, eta, w, phi)
+        # Newton step as one weighted solve: A beta_new = X^T (W (eta - offset) + s).
+        # No working response z, so zero weights cannot produce 0/0.
+        A = _xtwx(X, W, ridge)
+        beta_new = _spd_solve(A, X.T @ (W * (eta - offset) + s))
         dev_new = dev_of(beta_new)
 
         # Halve the step while the deviance increases (or is non-finite).
@@ -169,14 +265,15 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
             return b, dev_of(b), k + 1
 
         beta_new, dev_new, _ = lax.while_loop(h_cond, h_body, (beta_new, dev_new, 0))
-        # Converge on the deviance (as R/edgeR) *and* on the coefficient step,
-        # since Fisher scoring for non-canonical links (NB-log) is only
-        # linearly convergent and a deviance-only test stops at |dbeta|~sqrt(tol).
+        # Converge on the deviance (as R/edgeR) *and* on the coefficient step.
         # Fits whose deviance is ~0 (e.g. all-zero rows, beta -> -inf) are
         # accepted on the deviance criterion alone.
         dev_conv = jnp.abs(dev - dev_new) / (jnp.abs(dev_new) + 0.1) < tol
         step = jnp.max(jnp.abs(beta_new - beta))
-        step_conv = step < beta_tol * (1.0 + jnp.max(jnp.abs(beta_new)))
+        # Same dtype floor on the step: in f32 a beta_tol of 1e-5 sits under the
+        # rounding jitter of beta, so ~3% of genes ran to max_iter (Hao-like 10k,
+        # 0.10 vs 0.06 s on GPU) with no gain in accuracy.
+        step_conv = step < max(beta_tol, htol) * (1.0 + jnp.max(jnp.abs(beta_new)))
         conv = dev_conv & (step_conv | (dev_new < 1e-6))
         return beta_new, dev_new, it + 1, conv
 
@@ -184,12 +281,10 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
         cond, body, (beta, dev, jnp.asarray(0), jnp.asarray(False))
     )
 
-    # ---- final quantities ---------------------------------------------------
+    # ---- final quantities (Fisher information for cov_unscaled) -------------
     eta = X @ beta + offset
     W, _, mu = _working(family, y, eta, w, phi)
-    p = X.shape[1]
-    A = (X.T * W) @ X + ridge * jnp.eye(p, dtype=dtype)
-    cov = _spd_inv(A)
+    cov = _spd_inv(_xtwx(X, W, ridge))
     return GLMResult(beta, dev, mu, cov, n_iter, conv)
 
 
@@ -231,21 +326,46 @@ def _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family, max_iter,
                        (Y, offset, weights, phi, beta0), batch_size=batch_size)
 
     # Under vmap every feature waits for the slowest: on real data the median
-    # gene needs 6 iterations and one in a thousand needs 49.  So: a capped
-    # first pass for everyone, then the remaining iterations for a fixed-size
-    # bucket of the least-converged features (static shapes, still one program).
-    bucket = max(_STRAGGLER_BUCKET, Y.shape[0] // 8)  # pass 2 costs at most ~40% of pass 1
-    if Y.shape[0] <= bucket or max_iter <= _FIRST_PASS_ITER:
+    # gene needs ~5 iterations and one in a thousand needs ~50.  So: a short
+    # first pass for everyone, then two re-fit stages on the unconverged ones.
+    # Each stage picks, at run time, the smallest bucket from a static ladder
+    # that holds every unconverged feature (static shapes, still one program).
+    G = Y.shape[0]
+    K = _FIRST_PASS_ITER
+    if G <= _STRAGGLER_BUCKET or max_iter <= 2 * K:
         return run(Y, offset, weights, phi, beta0, use_beta0, max_iter, True)
-    res = run(Y, offset, weights, phi, beta0, use_beta0, _FIRST_PASS_ITER, True)
-    idx = jnp.argsort(res.converged)[:bucket]  # unconverged first
-    res2 = run(Y[idx], offset[idx], weights[idx], phi[idx], res.coef[idx], True,
-               max_iter - _FIRST_PASS_ITER, False)
-    res2 = res2._replace(n_iter=res2.n_iter + res.n_iter[idx])
-    redo = ~res.converged[idx]
-    return jax.tree_util.tree_map(
-        lambda a, b: a.at[idx].set(jnp.where(redo.reshape((-1,) + (1,) * (b.ndim - 1)), b, a[idx])),
-        res, res2)
+    # ponytail: ladder tops out at G/2. A full-G rung gathers ~5 (G, n) copies (Y, offset,
+    # weights, mu, scatter) and OOMs a 24 GB GPU at 161k cells; past G/2 unconverged the
+    # extras come back converged=False. Refit the top rung in place if that ever matters.
+    sizes = sorted({0} | {max(_STRAGGLER_BUCKET, G >> k) for k in (1, 2, 3)})
+
+    def norm(r):  # switch branches must agree on (weak) dtypes
+        return r._replace(n_iter=r.n_iter.astype(jnp.int32))
+
+    def stage(res, n_it):
+        idx = jnp.argsort(res.converged)  # unconverged first
+
+        def branch(b):
+            if b == 0:
+                return lambda r: r
+
+            def f(r):
+                i = idx[:b]
+                # chunk=True: re-fits honour batch_size too (unbatched they OOM at large n)
+                r2 = run(Y[i], offset[i], weights[i], phi[i], r.coef[i], True, n_it, True)
+                r2 = norm(r2._replace(n_iter=r2.n_iter + r.n_iter[i]))
+                redo = ~r.converged[i]
+                return jax.tree_util.tree_map(
+                    lambda a, c: a.at[i].set(jnp.where(redo.reshape((-1,) + (1,) * (c.ndim - 1)), c, a[i])),
+                    r, r2)
+            return f
+
+        k = jnp.searchsorted(jnp.asarray(sizes), jnp.sum(~res.converged))
+        return lax.switch(k, [branch(b) for b in sizes], res)
+
+    res = norm(run(Y, offset, weights, phi, beta0, use_beta0, K, True))
+    res = stage(res, K)
+    return stage(res, max_iter - 2 * K)
 
 
 def fit_glm(
@@ -281,10 +401,14 @@ def fit_glm(
     Notes
     -----
     ``phi=None`` means phi = 0, which with the default NB family is a Poisson fit.
-    Features are fit in two passes: 12 iterations for all, then the remaining
-    iterations for the max(256, G/8) least-converged ones. On very hard data
-    (low depth, many separated features) more than that may come back with
-    ``converged=False`` after 12 iterations; check ``converged.mean()``.
+    Features are fit in stages: 6 iterations for all, then 6 more and then the
+    remaining iterations for the unconverged ones (re-started from their
+    current coefficients, in the smallest bucket of G/8, G/4, G/2 that fits).
+    If more than G/2 are unconverged after the first pass, the rest come back
+    with ``converged=False``; check ``converged.mean()`` on very hard data.
+    NB coefficients use Newton steps with the observed information (falling
+    back to Fisher weights where those are not positive); ``cov_unscaled`` is
+    the Fisher (X^T W X)^-1 at convergence, as before.
     """
     squeeze = jnp.ndim(Y) == 1
     if squeeze:

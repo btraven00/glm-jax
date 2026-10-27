@@ -10,9 +10,11 @@ every trial dispersion we refit the NB GLM and evaluate
 1. ``apl_grid`` fits the first grid point to convergence, then walks the rest
    of the grid with ``lax.scan``, warm-starting each phi from the previous
    coefficients and taking a fixed number of Fisher-scoring steps (predictable
-   cost, no gene waits for a straggler).  The APL kernel hoists the phi-free
-   lgamma(y+1) term out of the loop, uses a shifted Stirling series for
-   lgamma(y + 1/phi), and an unrolled sqrt-free LDL^T for the log-determinant
+   cost, no gene waits for a straggler).  The APL kernel hoists every beta-free
+   term out of the loop (for integer counts lgamma(y + 1/phi) - lgamma(1/phi)
+   + y log phi = sum_{j<y} log1p(j phi), one table lookup per cell), builds
+   X^T W X for all genes in one GEMM (irls._xtwx), and returns it with the next
+   grid point's score so that point's first step needs no pass over the cells
    (ideas found by the evolve/ loop, see evolve/log.jsonl).
 2. ``estimate_dispersion_grid`` polishes the grid argmax with a few safeguarded
    Newton steps in theta = log(phi), differentiating the APL through those
@@ -30,9 +32,10 @@ from jax import lax
 from jax.scipy.special import gammaln
 
 from .families import NegativeBinomial
-from .irls import _SMALL_P, _broadcast_inputs, _fit_single, _wls, _working, fit_glm
+from .irls import _SMALL_P, _broadcast_inputs, _fit_single, _spd_solve, _wls, _working, _xtwx, fit_glm
 
 _NB = NegativeBinomial()
+_TABLE = 1 << 16  # integer counts below this use the log1p cumsum table (_y_terms)
 _FIT_DEFAULTS = dict(max_iter=50, tol=1e-8, beta_tol=1e-8, ridge=1e-10, max_halving=30)
 _HALF_LOG_2PI = 0.5 * math.log(2.0 * math.pi)
 
@@ -75,20 +78,61 @@ def _apl_single(y, X, offset, w, phi, beta):
     return ll - 0.5 * _logdet_spd((X.T * W) @ X)
 
 
-def _apl_grid_single(y, X, offset, w, phi, beta, c):
-    """``_apl_single`` with the phi-free term hoisted: ``c = sum(w lgamma(y+1))``.
+def _y_terms(Y, w, phi_grid):
+    """(K, G) of sum_n w [lgamma(y + r) - lgamma(r) + y log phi], r = 1/phi.
 
-    With r = 1/phi and log mu = eta, the NB log-likelihood per observation is
-    lgamma(y+r) - lgamma(r) - lgamma(y+1) + y (eta + log phi) - (y+r) log1p(phi mu).
+    For integer y >= 0 this equals sum_{j<y} log1p(j phi): exact, no
+    cancellation between two large lgammas, zero for y = 0, and one gather per
+    cell from a per-phi cumsum table.  Otherwise (non-integer or huge counts)
+    the shifted Stirling form.
+    """
+    def table(_):
+        j = jnp.arange(_TABLE - 1, dtype=Y.dtype)
+        idx = Y.astype(jnp.int32)
+
+        def one(phi):
+            T = jnp.concatenate([jnp.zeros(1, Y.dtype), jnp.cumsum(jnp.log1p(j * phi))])
+            return jnp.sum(w * T[idx], axis=-1)
+        return lax.map(one, phi_grid)
+
+    def stirling(_):
+        sw = jnp.sum(w, axis=-1)
+
+        def one(phi):
+            r = 1.0 / phi
+            return jnp.sum(w * (_lgamma_pos(Y + r) + Y * jnp.log(phi)), axis=-1) - gammaln(r) * sw
+        return lax.map(one, phi_grid)
+
+    ok = jnp.all(Y == jnp.floor(Y)) & (jnp.min(Y) >= 0) & (jnp.max(Y) < _TABLE)
+    return lax.cond(ok, table, stirling, None)
+
+
+def _apl_grid_single(y, X, offset, w, phi, beta, t, phi_next):
+    """``_apl_single`` with every beta-free term hoisted into ``t`` (``_y_terms`` minus lgamma(y+1)).
+
+    With log mu = eta the remaining NB log-likelihood is y eta - (y + r) log1p(phi mu).
+    Also returns X^T W X (one GEMM over all genes under vmap) and the score at
+    ``phi_next`` for this same beta: the next grid point's first step starts
+    here, so it needs no pass over the cells of its own.
     """
     eta = X @ beta + offset
     mu = jnp.exp(eta)
     pm = phi * mu
-    r = 1.0 / phi
-    ll = (jnp.sum(w * (_lgamma_pos(y + r) + y * (eta + jnp.log(phi)) - (y + r) * jnp.log1p(pm)))
-          - gammaln(r) * jnp.sum(w) - c)
-    W = w * mu / (1.0 + pm)
-    return ll - 0.5 * _logdet_spd((X.T * W) @ X)
+    ll = jnp.sum(w * (y * eta - (y + 1.0 / phi) * jnp.log1p(pm))) + t
+    A = _xtwx(X, w * mu / (1.0 + pm), 0.0)
+    s = X.T @ (w * (y - mu) / (1.0 + phi_next * mu))
+    return ll - 0.5 * _logdet_spd(A), A, s
+
+
+def _quasi_step(beta, A, s, ridge):
+    """One step with the exact score ``s`` at the new phi and the previous phi's X^T W X.
+
+    Both were built at this same ``beta``; only the phi inside W differs (one
+    grid ratio), so the fixed point is unchanged and the next Fisher step
+    corrects the curvature.  Non-finite steps keep ``beta``.
+    """
+    b_new = beta + _spd_solve(A + ridge * jnp.eye(A.shape[0], dtype=A.dtype), s)
+    return jnp.where(jnp.all(jnp.isfinite(b_new)), b_new, beta)
 
 
 def _fixed_steps(y, X, offset, w, phi, beta, steps, ridge):
@@ -115,30 +159,40 @@ def _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs):
     kw = {**_FIT_DEFAULTS, **fit_kwargs}
     Y, X, offset, weights, _, beta0, _ = _broadcast_inputs(Y, X, offset, weights, None, None)
     phi_grid = jnp.asarray(phi_grid, Y.dtype)
+    phi_next = jnp.concatenate([phi_grid[1:], phi_grid[-1:]])  # score phi for each point's successor
     c = jnp.sum(weights * gammaln(Y + 1.0), axis=-1)  # phi-free, computed once
+    terms = _y_terms(Y, weights, phi_grid) - c  # (K, G), beta-free, computed once
 
     def fit(phi, beta0, use_beta0):
         kern = partial(_fit_single, family=_NB, **kw)
         return jax.vmap(lambda y, o, w, b: kern(y, X, o, w, phi, b, use_beta0))(
             Y, offset, weights, beta0).coef
 
-    def fixed(phi, beta):
-        return jax.vmap(lambda y, o, w, b: _fixed_steps(y, X, o, w, phi, b, steps, kw["ridge"]))(
+    def fixed(phi, beta, A, s):
+        # first step from the previous point's X^T W X and this point's score, both
+        # built during the previous APL; the remaining steps-1 are plain Fisher steps
+        beta = jax.vmap(lambda b, a, sv: _quasi_step(b, a, sv, kw["ridge"]))(beta, A, s)
+        if steps == 1:
+            return beta
+        return jax.vmap(lambda y, o, w, b: _fixed_steps(y, X, o, w, phi, b, steps - 1, kw["ridge"]))(
             Y, offset, weights, beta)
 
-    apl_v = jax.vmap(_apl_grid_single, in_axes=(0, None, 0, 0, None, 0, 0))
+    apl_v = jax.vmap(_apl_grid_single, in_axes=(0, None, 0, 0, None, 0, 0, None))
 
-    def apl(phi, beta):
-        return apl_v(Y, X, offset, weights, phi, beta, c)
+    def apl(phi, beta, t, pn):
+        return apl_v(Y, X, offset, weights, phi, beta, t, pn)
 
     beta = fit(phi_grid[0], beta0, False)  # first grid point: converged fit
-    apl0 = apl(phi_grid[0], beta)
+    apl0, A0, s0 = apl(phi_grid[0], beta, terms[0], phi_next[0])
 
-    def step(beta, phi):
-        beta = fit(phi, beta, True) if steps is None else fixed(phi, beta)
-        return beta, (apl(phi, beta), beta)
+    def step(carry, xs):
+        beta, A, s = carry
+        phi, t, pn = xs
+        beta = fit(phi, beta, True) if steps is None else fixed(phi, beta, A, s)
+        a, A, s = apl(phi, beta, t, pn)
+        return (beta, A, s), (a, beta)
 
-    _, (apls, betas) = lax.scan(step, beta, phi_grid[1:])
+    _, (apls, betas) = lax.scan(step, (beta, A0, s0), (phi_grid[1:], terms[1:], phi_next[1:]))
     apls = jnp.concatenate([apl0[None], apls]).T
     betas = jnp.concatenate([beta[None], betas]).transpose(1, 0, 2)
     return apls, betas
@@ -149,7 +203,8 @@ def apl_grid(Y, X, phi_grid, *, offset=None, weights=None, steps=2, **fit_kwargs
 
     The first grid point is fit to convergence; the rest are walked with
     ``lax.scan``, each phi warm-started from the previous coefficients with
-    ``steps`` fixed Fisher-scoring steps and no convergence test: every gene
+    ``steps`` fixed steps and no convergence test (the first reuses the previous
+    point's X^T W X with this point's exact score, the rest are Fisher): every gene
     costs the same, so nobody waits for a separated gene drifting to -inf
     (under ``vmap`` the slowest gene sets the pace; those took 10-30 iterations
     while the median needed 3).  Two steps put the APL within ~2e-2 of the
@@ -207,6 +262,7 @@ def estimate_dispersion_grid(Y, X, *, offset=None, weights=None, phi_grid=None,
     Y = jnp.atleast_2d(jnp.asarray(Y))
     phi_grid = jnp.asarray(phi_grid)
     apl, betas = _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)
+    phi_grid = phi_grid.astype(apl.dtype)  # f32 data: keep theta f32 too (else _polish mixes dtypes)
     k_tag = jnp.argmax(apl, axis=1)
     k_common = jnp.argmax(jnp.sum(apl, axis=0))
     theta_grid = jnp.log(phi_grid)

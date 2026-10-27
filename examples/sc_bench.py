@@ -25,9 +25,9 @@ import glm_jax as gj
 out, N, G = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 B = int(sys.argv[4]) if len(sys.argv) > 4 else None
 PHI = 0.1
-# GLMJAX_DTYPE=f32: fit in float32 (tolerance 1e-6) and report the error vs the f64 fit
+# GLMJAX_DTYPE=f32: fit in float32 (tolerance 1e-5, 100% converged on Hao 10k) and report the error vs the f64 fit
 F32 = os.environ.get("GLMJAX_DTYPE", "f64") == "f32"
-TOL = 1e-6 if F32 else 1e-8
+TOL = 1e-5 if F32 else 1e-8
 DATA = os.environ.get("GLMJAX_DATA")
 
 if DATA:

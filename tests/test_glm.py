@@ -138,6 +138,16 @@ def test_float32_inputs_fit_in_float32():
     np.testing.assert_allclose(a.coef, b.coef, atol=1e-3)
 
 
+def test_float32_dispersion_within_profile_noise():
+    # f32 phi can differ a lot on flat profiles; judge it by the f64 APL it gives up
+    Y, X, offset, _ = nb_data(G=30, phi=0.2, seed=3)
+    a = gj.estimate_dispersion_grid(Y, X, offset=offset)["tagwise"]
+    b = gj.estimate_dispersion_grid(Y.astype(np.float32), X.astype(np.float32), offset=offset.astype(np.float32))["tagwise"]
+    assert b.dtype == np.float32
+    loss = gj.adjusted_profile_loglik(Y, X, a, offset=offset) - gj.adjusted_profile_loglik(Y, X, np.asarray(b, float), offset=offset)
+    assert np.max(loss) < 0.1
+
+
 def test_apl_grid_matches_independent_refits():
     Y, X, offset, _ = nb_data(G=40, n=12, phi=0.2, seed=5)
     grid = np.logspace(-2, 0.5, 6)

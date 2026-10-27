@@ -64,6 +64,19 @@ if (requireNamespace("edgeR", quietly = TRUE)) {
   row("edgeR_glmFit", 0, t_e, max(abs(e$coefficients - ref)))
 }
 
+# DEVIL (caravagnalab/devil) at the same fixed dispersion: init_overdispersion = PHI with
+# overdispersion = FALSE fits beta at PHI and skips the dispersion step. Offset goes in as
+# size_factors = exp(off): its `offset` argument is rep()'d to n, so only a scalar works.
+# tol 1e-3 is its default; 1e-8 matches the other rows. CUDA row only if built --with-cuda.
+if (requireNamespace("devil", quietly = TRUE)) {
+  cuda <- c(FALSE, if (exists("beta_fit_gpu", envir = asNamespace("devil"))) TRUE)
+  for (gpu in cuda) for (tol in c(1e-3, 1e-8)) {
+    t_d <- system.time(dv <- devil::fit_devil(Y, X, overdispersion = FALSE, init_overdispersion = PHI,
+                                              size_factors = exp(off), tolerance = tol, CUDA = gpu))[["elapsed"]]
+    row(sprintf("devil%s_tol%g", if (gpu) "_cuda" else "", tol), 0, t_d, max(abs(dv$beta - ref)), median(dv$iterations))
+  }
+}
+
 # naive per-gene glm, timed on N_LOOP genes and scaled to G
 idx <- seq_len(min(N_LOOP, G))
 t_loop <- system.time(b <- t(sapply(idx, function(g)
