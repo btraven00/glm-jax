@@ -10,6 +10,7 @@ follows the kernel when that changes rather than a hand-tuned bytes-per-cell.
 
 from __future__ import annotations
 
+import json
 import os
 
 import jax
@@ -19,7 +20,6 @@ import numpy as np
 from .dispersion import estimate_dispersion_grid
 from .irls import GLMResult, fit_glm
 
-_PROBE = 64          # genes in the sizing compile
 _DEVICE_BATCH = 256  # fit_glm batch_size cap inside a chunk (GPU time is flat in it)
 
 
@@ -43,40 +43,76 @@ def _program_bytes(compiled):
     return m.argument_size_in_bytes + m.temp_size_in_bytes + m.output_size_in_bytes - m.alias_size_in_bytes
 
 
-def plan_chunk(make, row_specs, shared, G, budget):
+_CAL_N = 4096                 # cells in the calibration compiles (cheap: ~5 s each, no remat)
+_CAL_CHUNKS = (32, 256, 1024)  # table points; bytes are piecewise linear in chunk between them
+_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "glm_jax", "plan.json")
+
+
+def _at(shape, n, n0):
+    return tuple(n0 if d == n else d for d in shape)
+
+
+def _table(make, row_specs, shared, n, key):
+    """Program bytes per cell at each _CAL_CHUNKS size, from compiles at _CAL_N cells; cached on disk.
+
+    Every large buffer is (chunk or batch) x cells, so bytes scale linearly in the
+    cell count (checked: 200k cells uses 9.9x the bytes of 20k) and a table at a few
+    thousand cells extrapolates to any n without compiling at full size, which is
+    slow near the device limit (XLA tries to rematerialize).
+    """
+    try:
+        with open(_CACHE) as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
+    if key not in cache:
+        sh = [jax.ShapeDtypeStruct(_at(a.shape, n, _CAL_N), a.dtype) for a in shared]
+        fixed = sum(np.prod(a.shape) * a.dtype.itemsize for a in sh)
+        cache[key] = []
+        for c in _CAL_CHUNKS:
+            args = [jax.ShapeDtypeStruct((c,) + _at(s_, n, _CAL_N), dt) for s_, dt in row_specs] + sh
+            used = _program_bytes(jax.jit(make(c)).lower(*args).compile())
+            cache[key].append((used - fixed) / _CAL_N)
+        os.makedirs(os.path.dirname(_CACHE), exist_ok=True)
+        with open(_CACHE, "w") as f:
+            json.dump(cache, f)
+    return np.array(_CAL_CHUNKS, float), np.array(cache[key])
+
+
+def plan_chunk(make, row_specs, shared, G, budget, key):
     """Largest gene chunk whose compiled program fits ``budget``; returns (chunk, compiled).
 
     ``make(chunk)`` returns the per-chunk function f(*rows, *shared); ``row_specs``
-    are (shape-after-gene-axis, dtype) of the per-gene inputs. Compiles once at
-    ``_PROBE`` genes to get bytes per gene, then at the predicted size, shrinking
-    by the overshoot ratio until it fits (usually 2 compiles in total).
+    are (shape-after-gene-axis, dtype) of the per-gene inputs; ``key`` names the
+    kernel and its settings for the calibration cache. The chunk comes from the
+    calibrated table (see ``_table``); one compile at that size checks it, and
+    shrinks it in the rare case XLA's accounting disagrees.
     """
-    def compile_at(c):
+    n = shared[0].shape[0]
+    key = f"{key}|{jax.devices()[0].device_kind}|{jax.__version__}|{shared[0].dtype}|{shared[0].shape[1:]}"
+    cs, per_cell = _table(make, row_specs, shared, n, key)
+    fixed = sum(a.nbytes for a in shared)
+    room = (budget - fixed) / n
+    if room < per_cell[0] / cs[0]:
+        raise MemoryError(f"one gene needs ~{per_cell[0] / cs[0] * n / 2**30:.2f} GiB > budget "
+                          f"{budget / 2**30:.2f} GiB; use fewer cells per call or a larger device")
+    # piecewise-linear interpolation, extended through the origin and past the last point
+    xs, ys = np.r_[0.0, cs], np.r_[0.0, per_cell]
+    c = float(np.interp(room, ys, xs)) if room <= ys[-1] else xs[-1] + (room - ys[-1]) * (xs[-1] - xs[-2]) / (ys[-1] - ys[-2])
+    c = int(min(G, c))
+    if c > _DEVICE_BATCH:
+        c -= c % _DEVICE_BATCH  # whole batches: a ragged tail compiles a second kernel copy
+    while True:
         args = [jax.ShapeDtypeStruct((c,) + sh, dt) for sh, dt in row_specs]
         args += [jax.ShapeDtypeStruct(a.shape, a.dtype) for a in shared]
         compiled = jax.jit(make(c)).lower(*args).compile()
-        return compiled, _program_bytes(compiled)
-
-    c0 = min(G, _PROBE)
-    compiled, used = compile_at(c0)
-    while used > budget:
-        if c0 == 1:
-            raise MemoryError(f"one gene needs {used / 2**30:.2f} GiB > budget {budget / 2**30:.2f} GiB; "
-                              "use fewer cells per call or a larger device")
-        c0 = max(1, int(c0 * budget / used * 0.9))
-        compiled, used = compile_at(c0)
-    fixed = sum(a.nbytes for a in shared)
-    per_gene = max(1.0, (used - fixed) / c0)
-    c = min(G, int((budget - fixed) / per_gene))
-    while c > c0:
-        compiled_c, used_c = compile_at(c)
-        if used_c <= budget:
-            return c, compiled_c
-        c = int(c * budget / used_c * 0.95)
-    return c0, compiled
+        used = _program_bytes(compiled)
+        if used <= budget or c == 1:
+            return c, compiled
+        c = max(1, int(c * budget / used * 0.95))
 
 
-def stream_genes(make, rows, shared, *, budget=None, chunk=None):
+def stream_genes(make, rows, shared, *, budget=None, chunk=None, key=""):
     """Apply ``make(chunk)(*row_chunks, *shared)`` over gene chunks; concatenate on the host.
 
     ``rows``: host arrays with genes on axis 0 (numpy or scipy.sparse; densified a
@@ -88,7 +124,7 @@ def stream_genes(make, rows, shared, *, budget=None, chunk=None):
     dtype = shared[0].dtype
     specs = [(r.shape[1:], dtype) for r in rows]
     if chunk is None:
-        chunk, run = plan_chunk(make, specs, shared, G, device_budget() if budget is None else budget)
+        chunk, run = plan_chunk(make, specs, shared, G, device_budget() if budget is None else budget, key)
     else:
         run = jax.jit(make(chunk))
 
@@ -128,7 +164,8 @@ def fit_glm_streamed(Y, X, *, offset=None, phi=None, budget=None, chunk=None, **
             return r._replace(mu=None)
         return f
 
-    res, chunk = stream_genes(make, (Y, phi), (X, offset), budget=budget, chunk=chunk)
+    res, chunk = stream_genes(make, (Y, phi), (X, offset), budget=budget, chunk=chunk,
+                              key=f"fit|{sorted(fit_kwargs.items())}")
     return GLMResult(*res), chunk
 
 
@@ -149,7 +186,8 @@ def estimate_dispersion_streamed(Y, X, *, offset=None, budget=None, chunk=None, 
             return {"tagwise": r["tagwise"], "apl": r["apl"]}
         return f
 
-    res, chunk = stream_genes(make, (Y,), (X, offset), budget=budget, chunk=chunk)
+    res, chunk = stream_genes(make, (Y,), (X, offset), budget=budget, chunk=chunk,
+                              key=f"disp|{sorted(kwargs.items())}")
     grid = kwargs.get("phi_grid")
     res["phi_grid"] = np.asarray(jnp.logspace(-4, 1, 60) if grid is None else grid, X.dtype)
     return res, chunk
