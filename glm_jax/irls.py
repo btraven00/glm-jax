@@ -111,6 +111,13 @@ _STRAGGLER_BUCKET = 256
 _CPU_CHUNK_ELEMS = 320_000
 
 
+# f32 matmuls default to TF32 (10-bit mantissa) on NVIDIA GPUs. In the batched
+# X'WX that was the whole f32 error (0.016 SE vs 3.6e-5 with true f32) and left
+# genes jittering to max_iter; fit time on the GPU is unchanged. No-op for f64/CPU.
+def _exact_f32():
+    return jax.default_matmul_precision("highest")
+
+
 def _n_cores():
     """Cores this process may run on (honours taskset / SLURM cpusets)."""
     try:
@@ -268,7 +275,7 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
         # Converge on the deviance (as R/edgeR) *and* on the coefficient step.
         # Fits whose deviance is ~0 (e.g. all-zero rows, beta -> -inf) are
         # accepted on the deviance criterion alone.
-        dev_conv = jnp.abs(dev - dev_new) / (jnp.abs(dev_new) + 0.1) < tol
+        dev_conv = jnp.abs(dev - dev_new) / (jnp.abs(dev_new) + 0.1) < max(tol, htol)
         step = jnp.max(jnp.abs(beta_new - beta))
         # Same dtype floor on the step: in f32 a beta_tol of 1e-5 sits under the
         # rounding jitter of beta, so ~3% of genes ran to max_iter (Hao-like 10k,
@@ -423,8 +430,9 @@ def fit_glm(
         # cores XLA's parallelism over genes is worth more; GPUs want the whole batch.
         chunk = max(1, _CPU_CHUNK_ELEMS // Y.shape[1])
         batch_size = chunk if chunk < Y.shape[0] else None
-    res = _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family,
-                       max_iter, beta_tol, tol, ridge, max_halving, batch_size)
+    with _exact_f32():
+        res = _fit_batched(Y, X, offset, weights, phi, beta0, use_beta0, family,
+                           max_iter, beta_tol, tol, ridge, max_halving, batch_size)
     if squeeze:
         res = jax.tree_util.tree_map(lambda a: a[0], res)
     return res

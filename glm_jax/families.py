@@ -15,6 +15,34 @@ import jax.numpy as jnp
 from jax.scipy.special import gammaln, xlogy
 
 
+def _lgamma_ratio(y, r):
+    """lgamma(y + r) - lgamma(r) - y log r, for y >= 0, r > 0.
+
+    The direct form subtracts two lgammas of size ~ r log r: in f32 at r = 1/phi
+    ~ 1e3 that noise flipped the sign of the dispersion Newton gradient on a
+    high-count gene (50k cells). For r >= 10 use the Stirling difference
+    r h(y/r) - log1p(y/r)/2 + s(y + r) - s(r), h(u) = (1 + u) log1p(u) - u
+    (series below u = 0.1), s the Stirling correction (error < 1e-10 at r >= 10).
+    float64 keeps the direct form: accurate enough there, and the Stirling one
+    costs ~1.8x in the dispersion polish (two branches + series per cell).
+    """
+    if jnp.result_type(y, r) == jnp.float64:
+        return gammaln(y + r) - gammaln(r) - y * jnp.log(r)
+    big = r >= 10.0
+    rb = jnp.where(big, r, 10.0)  # keep the unused branch finite (and its gradient)
+    u = y / rb
+    us = jnp.minimum(u, 0.1)
+    series = sum((-1.0) ** k * us**k / (k * (k - 1)) for k in range(2, 11))
+    h = jnp.where(u < 0.1, series, (1.0 + u) * jnp.log1p(u) - u)
+
+    def s(x):
+        ix2 = 1.0 / (x * x)
+        return (1.0 / 12 - ix2 * (1.0 / 360 - ix2 / 1260)) / x
+
+    stirling = rb * h - 0.5 * jnp.log1p(u) + s(y + rb) - s(rb)
+    return jnp.where(big, stirling, gammaln(y + r) - gammaln(r) - y * jnp.log(r))
+
+
 # --------------------------------------------------------------------------- #
 # Links
 # --------------------------------------------------------------------------- #
@@ -171,8 +199,8 @@ class NegativeBinomial(Family):
         phi_s = jnp.where(phi > 0, phi, 1.0)
         r = 1.0 / phi_s
         nb = (
-            gammaln(y + r) - gammaln(r) - gammaln(y + 1.0)
-            + xlogy(y, mu * phi_s) - (y + r) * jnp.log1p(mu * phi_s)
+            _lgamma_ratio(y, r) - gammaln(y + 1.0)
+            + xlogy(y, mu) - (y + r) * jnp.log1p(mu * phi_s)
         )
         return jnp.where(phi > 0, nb, pois)
 

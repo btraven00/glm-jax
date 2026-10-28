@@ -202,3 +202,15 @@ def test_apl_all_zero_row_finite_and_grid_tagwise_is_argmax():
     # grid-only tagwise is exactly the argmax of the APL matrix
     g0 = gj.estimate_dispersion_grid(Y, X, offset=offset, phi_grid=grid, newton=0)
     np.testing.assert_array_equal(np.asarray(g0["tagwise"]), grid[np.argmax(np.asarray(g0["apl"]), axis=1)])
+
+
+def test_streamed_matches_in_memory():
+    # a budget this small forces several gene chunks, a padded tail and sparse densification
+    import scipy.sparse as sparse
+    Y, X, offset, _ = nb_data(G=53, n=2000, seed=4)
+    ref = gj.fit_glm(Y, X, offset=offset, phi=0.1)
+    r, chunk = gj.fit_glm_streamed(sparse.csr_matrix(Y), X, offset=offset, phi=0.1, budget=2**20)
+    assert chunk < 53 and r.mu is None
+    np.testing.assert_allclose(r.coef, ref.coef, atol=1e-10)
+    d, _ = gj.estimate_dispersion_streamed(Y, X, offset=offset, chunk=16)
+    np.testing.assert_allclose(d["tagwise"], gj.estimate_dispersion_grid(Y, X, offset=offset)["tagwise"], rtol=1e-8)

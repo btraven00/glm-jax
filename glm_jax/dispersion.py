@@ -32,7 +32,7 @@ from jax import lax
 from jax.scipy.special import gammaln
 
 from .families import NegativeBinomial
-from .irls import _SMALL_P, _broadcast_inputs, _fit_single, _spd_solve, _wls, _working, _xtwx, fit_glm
+from .irls import _SMALL_P, _broadcast_inputs, _exact_f32, _fit_single, _spd_solve, _wls, _working, _xtwx, fit_glm
 
 _NB = NegativeBinomial()
 _TABLE = 1 << 16  # integer counts below this use the log1p cumsum table (_y_terms)
@@ -150,7 +150,8 @@ def adjusted_profile_loglik(Y, X, phi, *, offset=None, weights=None, fit=None, *
     if fit is None:
         fit = fit_glm(Y, X, family=_NB, offset=offset, weights=weights, phi=phi, **fit_kwargs)
     Y, X, offset, weights, phi, _, _ = _broadcast_inputs(Y, X, offset, weights, phi, None)
-    return jax.vmap(_apl_single, in_axes=(0, None, 0, 0, 0, 0))(Y, X, offset, weights, phi, fit.coef)
+    with _exact_f32():
+        return jax.vmap(_apl_single, in_axes=(0, None, 0, 0, 0, 0))(Y, X, offset, weights, phi, fit.coef)
 
 
 @partial(jax.jit, static_argnames=("steps",) + tuple(_FIT_DEFAULTS))
@@ -213,7 +214,8 @@ def apl_grid(Y, X, phi_grid, *, offset=None, weights=None, steps=2, **fit_kwargs
     converging IRLS at every grid point.
     """
     Y = jnp.atleast_2d(jnp.asarray(Y))
-    return _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)[0]
+    with _exact_f32():
+        return _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)[0]
 
 
 @partial(jax.jit, static_argnames=("steps", "newton", "common", "ridge"))
@@ -257,22 +259,23 @@ def estimate_dispersion_grid(Y, X, *, offset=None, weights=None, phi_grid=None,
       * ``apl``     : (G, K) matrix and ``phi_grid``
     ``newton`` Newton steps refine both from the grid argmax (0 = grid only).
     """
-    if phi_grid is None:
-        phi_grid = jnp.logspace(-4, 1, 60)
-    Y = jnp.atleast_2d(jnp.asarray(Y))
-    phi_grid = jnp.asarray(phi_grid)
-    apl, betas = _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)
-    phi_grid = phi_grid.astype(apl.dtype)  # f32 data: keep theta f32 too (else _polish mixes dtypes)
-    k_tag = jnp.argmax(apl, axis=1)
-    k_common = jnp.argmax(jnp.sum(apl, axis=0))
-    theta_grid = jnp.log(phi_grid)
-    tagwise, common = phi_grid[k_tag], phi_grid[k_common]
-    if newton:
-        lo, hi = theta_grid[0], theta_grid[-1]
-        max_step = jnp.max(jnp.diff(theta_grid))
-        ridge = {**_FIT_DEFAULTS, **fit_kwargs}["ridge"]
-        tagwise = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_tag], betas[jnp.arange(Y.shape[0]), k_tag],
-                                  lo, hi, max_step, steps, newton, False, ridge))
-        common = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_common], betas[:, k_common],
-                                 lo, hi, max_step, steps, newton, True, ridge))
-    return {"common": common, "tagwise": tagwise, "apl": apl, "phi_grid": phi_grid}
+    with _exact_f32():
+        if phi_grid is None:
+            phi_grid = jnp.logspace(-4, 1, 60)
+        Y = jnp.atleast_2d(jnp.asarray(Y))
+        phi_grid = jnp.asarray(phi_grid)
+        apl, betas = _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)
+        phi_grid = phi_grid.astype(apl.dtype)  # f32 data: keep theta f32 too (else _polish mixes dtypes)
+        k_tag = jnp.argmax(apl, axis=1)
+        k_common = jnp.argmax(jnp.sum(apl, axis=0))
+        theta_grid = jnp.log(phi_grid)
+        tagwise, common = phi_grid[k_tag], phi_grid[k_common]
+        if newton:
+            lo, hi = theta_grid[0], theta_grid[-1]
+            max_step = jnp.max(jnp.diff(theta_grid))
+            ridge = {**_FIT_DEFAULTS, **fit_kwargs}["ridge"]
+            tagwise = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_tag], betas[jnp.arange(Y.shape[0]), k_tag],
+                                      lo, hi, max_step, steps, newton, False, ridge))
+            common = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_common], betas[:, k_common],
+                                     lo, hi, max_step, steps, newton, True, ridge))
+        return {"common": common, "tagwise": tagwise, "apl": apl, "phi_grid": phi_grid}
