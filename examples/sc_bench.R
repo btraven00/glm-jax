@@ -66,14 +66,22 @@ if (requireNamespace("edgeR", quietly = TRUE)) {
 
 # DEVIL (caravagnalab/devil) at the same fixed dispersion: init_overdispersion = PHI with
 # overdispersion = FALSE fits beta at PHI and skips the dispersion step. Offset goes in as
-# size_factors = exp(off): its `offset` argument is rep()'d to n, so only a scalar works.
-# tol 1e-3 is its default; 1e-8 matches the other rows. CUDA row only if built --with-cuda.
+# size_factors = exp(off - mean(off)): its `offset` argument is rep()'d to n, so only a scalar
+# works, and raw exp(off) (~5000) gives NaN for 93% of genes (CPU) / all (CUDA) on Hao 10k.
+# The centring moves the intercept by mean(off); the diff is taken against the shifted ref.
+# tol 1e-3 is its default; 1e-8 matches the other rows. CPU genes run serially (its default
+# BiocParallel backend takes every core). CUDA row only if built --with-cuda, and it is NOT
+# at PHI: beta_fit_gpu takes no dispersion and estimates its own jointly with beta, so its
+# coefficient diff mixes in a different dispersion.
 if (requireNamespace("devil", quietly = TRUE)) {
   cuda <- c(FALSE, if (exists("beta_fit_gpu", envir = asNamespace("devil"))) TRUE)
   for (gpu in cuda) for (tol in c(1e-3, 1e-8)) {
     t_d <- system.time(dv <- devil::fit_devil(Y, X, overdispersion = FALSE, init_overdispersion = PHI,
-                                              size_factors = exp(off), tolerance = tol, CUDA = gpu))[["elapsed"]]
-    row(sprintf("devil%s_tol%g", if (gpu) "_cuda" else "", tol), 0, t_d, max(abs(dv$beta - ref)), median(dv$iterations))
+                                              size_factors = exp(off - mean(off)), tolerance = tol, CUDA = gpu,
+                                              BPPARAM = BiocParallel::SerialParam(), verbose = FALSE))[["elapsed"]]
+    ref_c <- ref; ref_c[, 1] <- ref[, 1] + mean(off)
+    row(sprintf("devil%s_tol%g", if (gpu) "_cuda" else "", tol), 0, t_d, max(abs(dv$beta - ref_c)),
+        median(dv$iterations$beta_iters))
   }
 }
 

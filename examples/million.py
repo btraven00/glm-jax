@@ -15,6 +15,7 @@ of top genes once nnz needs int64 indices; ponytail: build CSR for sparse panels
 fit cannot start before the last block); DESIGN.npz holds X and offset.
 """
 
+import os
 import sys
 import time
 
@@ -65,6 +66,7 @@ else:
           f"device={jax.devices()[0].device_kind} budget={gj.device_budget() / 2**30:.1f}GiB", flush=True)
 
 fit, disp = {}, {}
+FIT_ONLY = os.environ.get("GLMJAX_FIT_ONLY") == "1"  # skip the hours of dispersion
 for dt, tol in ((np.float64, 1e-8), (np.float32, 1e-5)):
     name = np.dtype(dt).name
     Xd, od = X.astype(dt), offset.astype(dt)
@@ -72,6 +74,8 @@ for dt, tol in ((np.float64, 1e-8), (np.float32, 1e-5)):
     fit[name], c = gj.fit_glm_streamed(Y, Xd, offset=od, phi=0.1, tol=tol, beta_tol=tol)
     print(f"fit_{name}: {time.perf_counter() - t:.1f}s chunk={c} converged={fit[name].converged.mean():.5f} "
           f"median_iter={np.median(fit[name].n_iter):.0f}", flush=True)
+    if FIT_ONLY:
+        continue
     t = time.perf_counter()
     disp[name], c = gj.estimate_dispersion_streamed(Y, Xd, offset=od)
     print(f"disp_{name}: {time.perf_counter() - t:.1f}s chunk={c}", flush=True)
@@ -89,6 +93,10 @@ for g in np.argsort(zg)[::-1][:10]:
     j = z[g].argmax()
     print(f"  gene {g}: |dβ|/SE {zg[g]:.2e} at coef {j} (β64 {fit['float64'].coef[g, j]:+.2f}) cond {kappa[g]:.2e} "
           f"iters {fit['float64'].n_iter[g]}/{fit['float32'].n_iter[g]}", flush=True)
+
+
+if FIT_ONLY:
+    sys.exit()
 
 
 def apl(p):  # f64 APL at given tagwise phi, streamed
