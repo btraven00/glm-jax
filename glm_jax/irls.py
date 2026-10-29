@@ -249,10 +249,14 @@ def _fit_single(y, X, offset, w, phi, beta0, use_beta0, *, family, max_iter, bet
         beta, dev, it, _ = state
         eta = X @ beta + offset
         W, s = _newton_terms(family, y, eta, w, phi)
-        # Newton step as one weighted solve: A beta_new = X^T (W (eta - offset) + s).
-        # No working response z, so zero weights cannot produce 0/0.
+        # Newton step solved for the increment, A d = X^T s - ridge beta (the same
+        # step as A beta_new = X^T (W (eta - offset) + s)). Solving for beta_new
+        # puts |beta| sum(W) on the right-hand side, and f32 rounding of that sum
+        # and of A no longer cancels: at 2M cells intercepts (beta ~ -7) converged
+        # 0.96 SE away from f64 (GWPS). No working response z, so zero weights
+        # cannot produce 0/0.
         A = _xtwx(X, W, ridge)
-        beta_new = _spd_solve(A, X.T @ (W * (eta - offset) + s))
+        beta_new = beta + _spd_solve(A, X.T @ s - ridge * beta)
         dev_new = dev_of(beta_new)
 
         # Halve the step while the deviance increases (or is non-finite).
