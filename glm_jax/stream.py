@@ -10,6 +10,7 @@ follows the kernel when that changes rather than a hand-tuned bytes-per-cell.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 
@@ -43,9 +44,24 @@ def _program_bytes(compiled):
     return m.argument_size_in_bytes + m.temp_size_in_bytes + m.output_size_in_bytes - m.alias_size_in_bytes
 
 
-_CAL_N = 4096                 # cells in the calibration compiles (cheap: ~5 s each, no remat)
+_CAL_N = 4096                 # cells in the calibration compiles (no remat; 13-120 s each on GPU, cached)
 _CAL_CHUNKS = (32, 256, 1024)  # table points; bytes are piecewise linear in chunk between them
-_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "glm_jax", "plan.json")
+_CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "glm_jax")
+_CACHE = os.path.join(_CACHE_DIR, "plan.json")
+# calibration entries are only valid for the kernel source that produced them
+_SRC = hashlib.sha1(b"".join(open(os.path.join(os.path.dirname(__file__), f), "rb").read()
+                             for f in ("irls.py", "dispersion.py"))).hexdigest()[:12]
+
+
+def _compile_cache():
+    """Use XLA's persistent compilation cache unless the caller set one (JAX_COMPILATION_CACHE_DIR).
+
+    A streamed program compiles in 50-150 s at 100k cells (Hao PBMC, laptop GPU;
+    mostly program size, ~1/3 GPU autotuning), and planning compiles four of
+    them; from the cache the same compile takes ~6 s (tracing).
+    """
+    if jax.config.jax_compilation_cache_dir is None:
+        jax.config.update("jax_compilation_cache_dir", os.path.join(_CACHE_DIR, "xla"))
 
 
 def _at(shape, n, n0):
@@ -89,7 +105,7 @@ def plan_chunk(make, row_specs, shared, G, budget, key):
     shrinks it in the rare case XLA's accounting disagrees.
     """
     n = shared[0].shape[0]
-    key = f"{key}|{jax.devices()[0].device_kind}|{jax.__version__}|{shared[0].dtype}|{shared[0].shape[1:]}"
+    key = f"{key}|{_SRC}|{jax.devices()[0].device_kind}|{jax.__version__}|{shared[0].dtype}|{shared[0].shape[1:]}"
     cs, per_cell = _table(make, row_specs, shared, n, key)
     fixed = sum(a.nbytes for a in shared)
     room = (budget - fixed) / n
@@ -123,6 +139,7 @@ def stream_genes(make, rows, shared, *, budget=None, chunk=None, key=""):
     G = rows[0].shape[0]
     dtype = shared[0].dtype
     specs = [(r.shape[1:], dtype) for r in rows]
+    _compile_cache()
     if chunk is None:
         chunk, run = plan_chunk(make, specs, shared, G, device_budget() if budget is None else budget, key)
     else:
