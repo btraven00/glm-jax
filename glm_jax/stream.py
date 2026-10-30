@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .dispersion import estimate_dispersion_grid
+from .dispersion import PHI_GRID, estimate_dispersion_grid
 from .irls import GLMResult, fit_glm
 
 _DEVICE_BATCH = 256  # fit_glm batch_size cap inside a chunk (GPU time is flat in it)
@@ -182,12 +182,12 @@ def estimate_dispersion_streamed(Y, X, *, offset=None, budget=None, chunk=None, 
 
     def make(c):
         def f(Yc, X, offset):
-            r = estimate_dispersion_grid(Yc, X, offset=offset, **kwargs)
+            r = estimate_dispersion_grid(Yc, X, offset=offset, polish_common=False, **kwargs)
             return {"tagwise": r["tagwise"], "apl": r["apl"]}
         return f
 
     res, chunk = stream_genes(make, (Y,), (X, offset), budget=budget, chunk=chunk,
                               key=f"disp|{sorted(kwargs.items())}")
     grid = kwargs.get("phi_grid")
-    res["phi_grid"] = np.asarray(jnp.logspace(-4, 1, 60) if grid is None else grid, X.dtype)
+    res["phi_grid"] = np.asarray(PHI_GRID if grid is None else grid, X.dtype)
     return res, chunk

@@ -27,6 +27,7 @@ import math
 from functools import partial
 
 import jax
+import numpy as np
 import jax.numpy as jnp
 from jax import lax
 from jax.scipy.special import gammaln
@@ -35,6 +36,7 @@ from .families import NegativeBinomial
 from .irls import _SMALL_P, _broadcast_inputs, _exact_f32, _fit_single, _spd_solve, _wls, _working, _xtwx, fit_glm
 
 _NB = NegativeBinomial()
+PHI_GRID = np.logspace(-4, 1, 30)  # default dispersion grid (numpy: no device work at import)
 _TABLE = 1 << 16  # integer counts below this use the log1p cumsum table (_y_terms)
 _FIT_DEFAULTS = dict(max_iter=50, tol=1e-8, beta_tol=1e-8, ridge=1e-10, max_halving=30)
 _HALF_LOG_2PI = 0.5 * math.log(2.0 * math.pi)
@@ -250,18 +252,23 @@ def _polish(Y, X, offset, weights, theta, beta, lo, hi, max_step, steps, newton,
 
 
 def estimate_dispersion_grid(Y, X, *, offset=None, weights=None, phi_grid=None,
-                             steps=2, newton=2, **fit_kwargs):
+                             steps=2, newton=2, polish_common=True, **fit_kwargs):
     """Grid search plus Newton polish in log(phi).
 
     Returns a dict with
       * ``common``  : argmax_phi sum_g APL_g(phi)   (edgeR common dispersion)
       * ``tagwise`` : argmax_phi APL_g(phi)         (no EB shrinkage yet)
       * ``apl``     : (G, K) matrix and ``phi_grid``
-    ``newton`` Newton steps refine both from the grid argmax (0 = grid only).
+    ``newton`` Newton steps refine both from the grid argmax (0 = grid only);
+    ``polish_common=False`` leaves ``common`` at the grid argmax (its polish
+    costs about as much as the tagwise one).  The default grid has 30 points:
+    against 60, tagwise estimates lost at most 0.008 APL on three 100k-cell
+    datasets (Hao PBMC, aifi, splatter); 20 points lost up to 0.77 on Hao PBMC,
+    whose profiles are too peaked for 2 Newton steps from a coarser grid.
     """
     with _exact_f32():
         if phi_grid is None:
-            phi_grid = jnp.logspace(-4, 1, 60)
+            phi_grid = PHI_GRID
         Y = jnp.atleast_2d(jnp.asarray(Y))
         phi_grid = jnp.asarray(phi_grid)
         apl, betas = _grid(Y, X, phi_grid, offset, weights, steps, **fit_kwargs)
@@ -276,6 +283,7 @@ def estimate_dispersion_grid(Y, X, *, offset=None, weights=None, phi_grid=None,
             ridge = {**_FIT_DEFAULTS, **fit_kwargs}["ridge"]
             tagwise = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_tag], betas[jnp.arange(Y.shape[0]), k_tag],
                                       lo, hi, max_step, steps, newton, False, ridge))
-            common = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_common], betas[:, k_common],
-                                     lo, hi, max_step, steps, newton, True, ridge))
+            if polish_common:
+                common = jnp.exp(_polish(Y, X, offset, weights, theta_grid[k_common], betas[:, k_common],
+                                         lo, hi, max_step, steps, newton, True, ridge))
         return {"common": common, "tagwise": tagwise, "apl": apl, "phi_grid": phi_grid}
