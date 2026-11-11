@@ -24,10 +24,10 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from evaluate import REPO, TARGET, T, evaluate
+from evaluate import FILE, REPO, TARGET, T, evaluate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(REPO, "glm_jax", f"{TARGET}.py")
+SRC = os.path.join(REPO, "glm_jax", f"{FILE}.py")
 SFX = "" if TARGET == "dispersion" else f"_{TARGET}"  # dispersion keeps the original file names
 BEST = os.path.join(HERE, f"best{SFX}.py")
 LOG = os.path.join(HERE, f"log{SFX}.jsonl")

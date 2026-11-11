@@ -37,7 +37,14 @@ HAO = os.environ.get("EVOLVE_HAO", os.path.join(REPO, "scratch", "data", "hao_10
 REMOTE = os.environ.get("EVOLVE_REMOTE", "")
 REMOTE_DIR = os.environ.get("EVOLVE_REMOTE_DIR", "glm-jax-evolve")  # relative to remote ~
 REMOTE_PY = os.environ.get("EVOLVE_REMOTE_PY", "glm-jax/.venv-gpu/bin/python")
-DEVICE = "one GPU (NVIDIA L4)" if REMOTE else "one CPU core"
+# EVOLVE_REMOTE_SBATCH=0: the remote host has the GPU itself, run scripts over plain ssh
+SBATCH = os.environ.get("EVOLVE_REMOTE_SBATCH", "1") == "1"
+DEVICE = os.environ.get("EVOLVE_DEVICE", "one GPU (NVIDIA L4)" if REMOTE else "one CPU core")
+SC = os.environ.get("EVOLVE_SC", "")  # npz (Y, X, offset) for the pbmc100k_* workloads, on the timing host
+
+
+def _rp(p):  # remote paths: absolute as given, else relative to the remote ~
+    return p if p.startswith("/") else f"~/{p}"
 
 HEAD = """
 import sys, time, numpy as np, jax, jax.numpy as jnp
@@ -76,6 +83,17 @@ Y = rng.negative_binomial(1 / PHI, 1 / (1 + PHI * mu)).astype(float)
 d = np.load({HAO!r})
 Y, X, offset = d["Y"], d["X"], d["offset"]
 """, "real single-cell, 2000 genes x 10000 cells (10 coefficients, mostly low counts)"),
+    # dispersion_sc: DT is the compute dtype, TOL the max f64 APL a gene may lose vs the reference
+    "pbmc100k_f64": (f"""
+d = np.load({SC!r})
+Y, X, offset = d["Y"].astype(np.float64), d["X"], d["offset"]
+DT, TOL = np.float64, 0.05
+""", "real single-cell (Hao PBMC), 256 genes x 100000 cells (10 coefficients), float64"),
+    "pbmc100k_f32": (f"""
+d = np.load({SC!r})
+Y, X, offset = d["Y"].astype(np.float64), d["X"], d["offset"]
+DT, TOL = np.float32, 0.1
+""", "the same data in float32"),
 }
 WORKLOADS = {w: ALL_WORKLOADS[w][0] for w in os.environ.get("EVOLVE_WORKLOADS", "synth,hao").split(",")}
 FITNESS = (f"Fitness is the geometric mean of the median wall times on {len(WORKLOADS)} workload(s), "
@@ -153,6 +171,41 @@ Hard constraints (an automatic evaluator enforces them and discards violators):
 with default tolerances.  {TAIL}
 
 {HINTS}"""
+BRIEF_DISPERSION_SC = f"""You optimise one file of a small JAX library for speed on {DEVICE}.
+
+The file is glm_jax/dispersion.py: negative-binomial dispersion estimation by
+Cox-Reid adjusted profile likelihood (APL).  estimate_dispersion_grid walks a
+30-point grid of phi (the first point fit to convergence, the rest with 2 fixed
+warm-started Fisher steps each, quasi-Newton first step reusing the previous
+point's X^T W X), then takes 2 safeguarded Newton steps in log(phi) per gene
+from the grid argmax (forward-over-forward derivatives through the fixed steps).
+At 100k cells the grid is now most of the time; the polish is the rest.
+
+It imports from glm_jax.irls, whose code you cannot change: _SMALL_P,
+_broadcast_inputs, _exact_f32 (context manager forcing exact f32 matmuls),
+_fit_single, _spd_solve, _wls, _working, _xtwx (X^T diag(W) X for all genes as
+one (genes x cells) @ (cells x p(p+1)/2) GEMM), fit_glm.
+
+Hard constraints (an automatic evaluator enforces them and discards violators):
+- keep the public functions and signatures: adjusted_profile_loglik, apl_grid,
+  estimate_dispersion_grid (including polish_common), PHI_GRID, with the same
+  return shapes and dict keys; tests/test_glm.py -k "apl or dispersion" pass;
+- accuracy is judged by an independent frozen copy of the current file: at your
+  tagwise estimates, every gene's f64 APL may be at most 0.05 (float64 run) /
+  0.1 (float32 run) below the APL at a reference estimate (60-point grid,
+  4 Newton steps).  Changing the grid, the number of steps or the polish is
+  allowed if it passes this;
+- the compiled program's temporary memory must stay within 1.1x of the current
+  file's (memory per gene x cell sets how many genes fit per device chunk at
+  1M+ cells, so a faster but larger program is slower at scale);
+- pure JAX, no new dependencies, no file/OS access, no monkeypatching of other
+  modules or of jax/jnp/lax/np attributes (statically rejected).
+
+{FITNESS}  The timed call is the jitted
+estimate_dispersion_grid(Y, X, offset=offset, polish_common=False)["tagwise"].
+{TAIL}
+
+{HINTS}"""
 # per target: f() is the timed call; REF saves the reference to sys.argv[1]; GATE sets bad (None = pass)
 TARGETS = {
     "dispersion": {
@@ -179,6 +232,32 @@ ok = np.all(np.isfinite(apl)) and rel < 1.0 and agree == 1.0
 bad = None if ok else f"shape={apl.shape} max_rel_to_gap={rel:.3g} max_abs_diff={err:.3g} argmax_agree={agree:.4f}"
 """,
     },
+    "dispersion_sc": {
+        "file": "dispersion",
+        "brief": BRIEF_DISPERSION_SC,
+        "pytest": ["tests/test_glm.py", "-k", "apl or dispersion"],
+        "run": """
+Yd, Xd, od = (jnp.asarray(a, DT) for a in (Y, X, offset))
+prog = jax.jit(lambda Y: gj.estimate_dispersion_grid(Y, Xd, offset=od, polish_common=False)["tagwise"]).lower(Yd).compile()
+mem = prog.memory_analysis().temp_size_in_bytes
+f = lambda: jax.block_until_ready(prog(Yd))
+""",
+        # reference from the repo code at tighter settings; mem is the current file's program
+        "ref": """
+Y64, X64, o64 = (jnp.asarray(a, jnp.float64) for a in (Y, X, offset))
+tag = gj.estimate_dispersion_grid(Y64, X64, offset=o64, phi_grid=np.logspace(-4, 1, 60), newton=4, polish_common=False)["tagwise"]
+np.savez(sys.argv[1], tag=np.asarray(tag), apl=np.asarray(gj.adjusted_profile_loglik(Y64, X64, tag, offset=o64)), mem=mem)
+""",
+        "gate": """
+from glm_jax._trusted_dispersion import adjusted_profile_loglik as trusted_apl  # repo copy, not the candidate
+tag = np.asarray(f())
+same = tag.shape == ref["tag"].shape and bool(np.all(np.isfinite(tag)))
+loss = ref["apl"] - np.asarray(trusted_apl(*(jnp.asarray(a, jnp.float64) for a in (Y, X)), jnp.asarray(tag, jnp.float64),
+                                           offset=jnp.asarray(offset, jnp.float64))) if same else np.array([np.inf])
+ok = same and bool(np.all(np.isfinite(loss))) and loss.max() < TOL and mem <= 1.1 * ref["mem"]
+bad = None if ok else f"shape={tag.shape} max_apl_loss={loss.max():.3g} (tol {TOL}) temp_memory={mem / ref['mem']:.2f}x current"
+""",
+    },
     "irls": {
         "brief": BRIEF_IRLS,
         "pytest": ["tests/test_glm.py"],
@@ -199,8 +278,10 @@ bad = None if ok else (f"converged={conv.mean():.4f} ref={ref['converged'].mean(
     },
 }
 T = TARGETS[TARGET]
-OTHERS = "|".join(m for m in ("irls", "dispersion", "families", "inference", "glm_jax") if m != TARGET)
-BANNED = re.compile(rf"\b({OTHERS})\.\w+\s*=[^=]|\bsetattr\(|\bimportlib\b|\bos\.(?!sched_getaffinity\(|cpu_count\()|"  # irls.py reads its core count
+FILE = T.get("file", TARGET)
+OTHERS = "|".join(m for m in ("irls", "dispersion", "families", "inference", "glm_jax", "jax", "jnp", "lax", "np")
+                  if m != FILE)
+BANNED = re.compile(rf"\b({OTHERS})(\.\w+)+\s*=[^=]|\b_trusted|\bsetattr\(|\bimportlib\b|\bos\.(?!sched_getaffinity\(|cpu_count\()|"  # irls.py reads its core count
                     r"\bsubprocess\b|\bopen\(|\b__import__\b|\bsys\.modules\b")
 TIMER = """
 ref = np.load(sys.argv[1])
@@ -240,9 +321,12 @@ def _run_remote(code, ref, cwd, timeout):
         subprocess.run(["rsync", "-az", "--exclude", "__pycache__", os.path.join(cwd, "glm_jax"),
                         os.path.join(tmp, "script.py"), f"{REMOTE}:{job}/"], check=True, capture_output=True, timeout=300)
         # ponytail: one sbatch --wait per script; queue wait is small while the GPU is ours
-        cmd = (f"cd {job} && sbatch --wait -J glmjax-evolve --gres=gpu:1 -c 4 --mem=32G -t 00:30:00 -o out.txt "
-               f"--wrap='PYTHONPATH=. JAX_PLATFORMS=cuda ~/{REMOTE_PY} script.py ~/{ref}' >/dev/null; "
-               f"rc=$?; cat out.txt; cd ~ && rm -rf {job}; exit $rc")
+        run = f"PYTHONPATH=. JAX_PLATFORMS=cuda {_rp(REMOTE_PY)} script.py {_rp(ref)}"
+        if SBATCH:
+            run = f"sbatch --wait -J glmjax-evolve --gres=gpu:1 -c 4 --mem=32G -t 00:30:00 -o out.txt --wrap='{run}' >/dev/null"
+        else:
+            run += " > out.txt 2>&1"
+        cmd = f"cd {job} && {run}; rc=$?; cat out.txt; cd ~ && rm -rf {job}; exit $rc"
         r = subprocess.run(sh + [cmd], capture_output=True, text=True, timeout=timeout)
         return subprocess.CompletedProcess(code, r.returncode, r.stdout, r.stderr)
     except subprocess.TimeoutExpired:
@@ -256,8 +340,11 @@ def _run_remote(code, ref, cwd, timeout):
 def _run(args, cwd, pythonpath, timeout=900):
     if REMOTE and args[1] == "-c":  # timing/reference scripts; pytest stays on the local core
         return _run_remote(args[2], args[3], cwd, max(timeout, 2400))
+    # EVOLVE_LOCAL_GPU=1 (on the GPU host itself, e.g. evolve/batch.py evaluate): timing scripts use the GPU
+    gpu = os.environ.get("EVOLVE_LOCAL_GPU") == "1" and args[1] == "-c"
     env = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", ""), "PYTHONPATH": pythonpath,
-           "JAX_PLATFORMS": "cpu", "OMP_NUM_THREADS": "1", "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false"}
+           "JAX_PLATFORMS": "cuda" if gpu else "cpu", "OMP_NUM_THREADS": "1",
+           "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false"}
     pin = ["taskset", "-c", os.environ.get("EVOLVE_CORE", "0")]
     try:
         return subprocess.run(pin + args, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
@@ -289,7 +376,9 @@ def evaluate(candidate, tests=True):
         for d in ("glm_jax", "tests"):
             shutil.copytree(os.path.join(REPO, d), os.path.join(work, d),
                             ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copy(candidate, os.path.join(work, "glm_jax", f"{TARGET}.py"))
+        # frozen repo copy for gates that must not trust the candidate's own code
+        shutil.copy(os.path.join(REPO, "glm_jax", "dispersion.py"), os.path.join(work, "glm_jax", "_trusted_dispersion.py"))
+        shutil.copy(candidate, os.path.join(work, "glm_jax", f"{FILE}.py"))
         if tests:
             t = _run([sys.executable, "-m", "pytest", "-q", "-x"] + T["pytest"], work, work)
             if t.returncode != 0:
