@@ -1,0 +1,118 @@
+---
+title: "Fitting every gene of a Visium HD SpatialExperiment on a GPU"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fitting every gene of a Visium HD SpatialExperiment on a GPU}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+# Needs a 10x Visium HD .rds (2.4 GB in memory) and, for the timings, a GPU:
+# the code is shown, not run. The numbers are from the run described below.
+knitr::opts_chunk$set(eval = FALSE, collapse = TRUE)
+```
+
+This vignette fits an intercept-only Poisson GLM with a size-factor offset to
+each of the 18,082 genes of a 10x Visium HD lung `SpatialExperiment` (443,765
+bins), and ranks genes by Pearson residual variance, the first step of
+`glmGamPoi`-style feature selection. The counts never pass through a dense
+matrix or a converted copy on disk:
+
+- [picklerick](https://github.com/btraven00/scx) reads the `.rds` straight
+  into gene blocks: it inflates the file once to index it, then reads each
+  block in parallel, about 0.3 s per 1,000 genes.
+- glmjax fits each block on the GPU in single precision.
+
+## Setup
+
+```{r}
+pak::pak("btraven00/scx/r/picklerick")  # gene_blocks() is new after picklerick 0.6.0
+library(picklerick)
+library(Matrix)
+Sys.setenv(PJRT_PLATFORM = "cuda")      # before the first fit; omit for CPU
+path <- "raw.rds"                       # a saved SpatialExperiment
+```
+
+## Size factors
+
+`gene_blocks()` opens the file once. Each `$read(k)` returns block `k` as a
+cells x genes `dgCMatrix`. One pass over the blocks gives the cell totals:
+
+```{r}
+it <- gene_blocks(path, block_size = 1000)
+tot <- Reduce(`+`, lapply(seq_len(it$n), function(k) rowSums(it$read(k))))
+keep <- tot > 0                                    # 756 bins are empty
+sf <- tot / exp(mean(log(tot[keep])))
+offset <- ifelse(keep, log(sf), 0)
+weights <- as.numeric(keep)                        # empty bins out of the fit
+X <- matrix(1, length(tot), 1, dimnames = list(NULL, "(Intercept)"))
+```
+
+## Fit, block by block
+
+The fit takes genes x cells, so transpose each block. Pearson residual
+variance comes from sparse sums, `sum(y^2 / mu) - 2 sum(y) + sum(mu)`, so the
+dense residual matrix is never formed:
+
+```{r}
+fit_block <- function(k) {
+  m <- it$read(k)
+  fit <- glmjax::fit_glm(t(m), X, offset = offset, weights = weights,
+                         dispersion = 0, precision = "single")
+  b <- fit$Beta[, 1]
+  y <- as(m * weights, "TsparseMatrix")
+  mu <- exp(b[y@j + 1L] + offset[y@i + 1L])
+  s_y2_mu <- tapply(y@x^2 / mu, factor(y@j + 1L, levels = seq_len(ncol(m))),
+                    sum, default = 0)
+  rv <- (s_y2_mu - 2 * colSums(y) + exp(b) * sum(exp(offset) * weights)) / sum(weights)
+  data.frame(gene = colnames(m), beta0 = b, resid_var = as.numeric(rv),
+             converged = fit$converged, iterations = fit$iterations)
+}
+res <- do.call(rbind, lapply(seq_len(it$n), fit_block))
+head(res[order(-res$resid_var), ], 10)
+```
+
+One process should hold the GPU. On a CPU, fork workers instead. Each one
+reads its own blocks from the shared iterator:
+
+```{r}
+res <- do.call(rbind, parallel::mclapply(seq_len(it$n), fit_block, mc.cores = 4))
+```
+
+## Check
+
+An intercept-only Poisson fit with an offset has a closed form,
+`log(sum(y) / sum(exp(offset)))`, over the kept cells:
+
+```{r}
+m <- read_genes(path, res$gene[1:50])
+closed <- log(colSums(m * weights) / sum(exp(offset) * weights))
+ok <- is.finite(closed)                            # all-zero genes have no MLE
+max(abs(res$beta0[1:50][ok] - closed[ok]))
+#> 1.46e-06
+```
+
+## Results
+
+The run used an NVIDIA RTX 2000 Ada laptop GPU (8 GB) with CUDA and float32
+kernels.
+
+| step                               | time    |
+|------------------------------------|---------|
+| open and index the `.rds`          | 1.7 s   |
+| cell totals (18 blocks)            | 6.1 s   |
+| fit 18,082 genes                   | 420 s   |
+| total, wall                        | 434 s   |
+
+- **Per block of 1,000 genes:** reading took 0.29 s and fitting took 23 s
+  (medians), so reading is about 1% of the run.
+- **Convergence:** every gene converged, with a median of 7 iterations and a
+  maximum of 25.
+- **Rate:** 43 genes/s. A 256-gene benchmark ran at 6.6 genes/s on the CPU in
+  double precision, which projects to about 45 minutes for the full gene set.
+- **Memory:** the R process peaked at 3.9 GB. On the GPU, XLA plans 0.88 GB
+  for the float32 kernel at this size (524,288 cells x 16 genes), and 1.8 GB
+  in float64.
+- **Top genes by residual variance:** IGKC (32.3), SFRP2 (25.6), PLN (19.6),
+  IGHG1 (17.1) and IGHM (15.0).
