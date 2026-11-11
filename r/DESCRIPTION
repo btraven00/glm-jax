@@ -1,0 +1,19 @@
+Package: glmjax
+Title: Batched Negative-Binomial GLM Fits Compiled by XLA
+Version: 0.0.1
+Authors@R: person("Ben", "Traven", email = "ben.uzh@proton.me", role = c("aut", "cre"))
+Description: Fits one negative-binomial (or Poisson) log-link GLM per gene at a given dispersion,
+    for count matrices with a shared design. The fitting kernel is written in JAX, shipped as
+    portable 'StableHLO' programs, and compiled on the user's machine through 'pjrt'; no Python
+    is needed at runtime. Meant as a fast fitter underneath differential-expression packages.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: xlaport
+URL: https://github.com/btraven00/glm-jax
+BugReports: https://github.com/btraven00/glm-jax/issues
+Suggests: MASS, Matrix, testthat (>= 3.0.0)
+Remotes: btraven00/xlaport
+Additional_repositories: https://btraven00.r-universe.dev, https://r-xla.r-universe.dev
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.1

@@ -1,0 +1,2817 @@
+{
+ "xlaport": 1,
+ "kernels": {
+  "nb_fit_n8": {
+   "file": "nb_fit_n8.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      8
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      8,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      8
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      8
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n12": {
+   "file": "nb_fit_n12.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      12,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n16": {
+   "file": "nb_fit_n16.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n24": {
+   "file": "nb_fit_n24.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      24
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      24,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      24
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      24
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n32": {
+   "file": "nb_fit_n32.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      32
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      32,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n48": {
+   "file": "nb_fit_n48.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      48
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      48,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      48
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      48
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n64": {
+   "file": "nb_fit_n64.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      64
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      64,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n96": {
+   "file": "nb_fit_n96.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      96
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      96,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      96
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      96
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n128": {
+   "file": "nb_fit_n128.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      128
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      128,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n192": {
+   "file": "nb_fit_n192.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      192,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n256": {
+   "file": "nb_fit_n256.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n384": {
+   "file": "nb_fit_n384.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      384,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n512": {
+   "file": "nb_fit_n512.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      512
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      512,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      512
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      512
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n768": {
+   "file": "nb_fit_n768.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      768,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n1024": {
+   "file": "nb_fit_n1024.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      1024
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      1024,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      1024
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      1024
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n1536": {
+   "file": "nb_fit_n1536.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      1536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      1536,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      1536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      1536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n2048": {
+   "file": "nb_fit_n2048.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      2048
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      2048,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      2048
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      2048
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n3072": {
+   "file": "nb_fit_n3072.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      3072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      3072,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      3072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      3072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n4096": {
+   "file": "nb_fit_n4096.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      4096
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      4096,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      4096
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      4096
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n6144": {
+   "file": "nb_fit_n6144.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      6144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      6144,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      6144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      6144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n8192": {
+   "file": "nb_fit_n8192.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      8192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      8192,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      8192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      8192
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n12288": {
+   "file": "nb_fit_n12288.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      12288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      12288,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      12288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      12288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n16384": {
+   "file": "nb_fit_n16384.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      256,
+      16384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      16384,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      16384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      16384
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      256,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      256
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      256
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      256
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n24576": {
+   "file": "nb_fit_n24576.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      128,
+      24576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      24576,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      24576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      24576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      128,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      128
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      128
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n32768": {
+   "file": "nb_fit_n32768.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      128,
+      32768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      32768,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      32768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      32768
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      128,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      128
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      128
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      128
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n49152": {
+   "file": "nb_fit_n49152.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      64,
+      49152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      49152,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      49152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      49152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      64,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      64
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      64
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n65536": {
+   "file": "nb_fit_n65536.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      64,
+      65536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      65536,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      65536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      65536
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      64,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      64
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      64
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      64
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n98304": {
+   "file": "nb_fit_n98304.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      32,
+      98304
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      98304,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      98304
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      98304
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      32,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      32
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      32
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n131072": {
+   "file": "nb_fit_n131072.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      32,
+      131072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      131072,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      131072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      131072
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      32,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      32
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      32
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      32
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n196608": {
+   "file": "nb_fit_n196608.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      196608
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      196608,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      196608
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      196608
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n262144": {
+   "file": "nb_fit_n262144.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      262144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      262144,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      262144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      262144
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n393216": {
+   "file": "nb_fit_n393216.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      393216
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      393216,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      393216
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      393216
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n524288": {
+   "file": "nb_fit_n524288.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      524288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      524288,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      524288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      524288
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n786432": {
+   "file": "nb_fit_n786432.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      786432
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      786432,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      786432
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      786432
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n1048576": {
+   "file": "nb_fit_n1048576.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      1048576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      1048576,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      1048576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      1048576
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n1572864": {
+   "file": "nb_fit_n1572864.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      1572864
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      1572864,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      1572864
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      1572864
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n2097152": {
+   "file": "nb_fit_n2097152.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      2097152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      2097152,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      2097152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      2097152
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  },
+  "nb_fit_n3145728": {
+   "file": "nb_fit_n3145728.mlir",
+   "jax": "0.12.0.1",
+   "inputs": [
+    {
+     "name": "Y",
+     "shape": [
+      16,
+      3145728
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "X",
+     "shape": [
+      3145728,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "offset",
+     "shape": [
+      3145728
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "weights",
+     "shape": [
+      3145728
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "phi",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "coef",
+     "shape": [
+      16,
+      12
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "deviance",
+     "shape": [
+      16
+     ],
+     "dtype": "f64"
+    },
+    {
+     "name": "converged",
+     "shape": [
+      16
+     ],
+     "dtype": "pred"
+    },
+    {
+     "name": "n_iter",
+     "shape": [
+      16
+     ],
+     "dtype": "i32"
+    }
+   ]
+  }
+ }
+}
