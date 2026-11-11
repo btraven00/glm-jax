@@ -4,7 +4,15 @@
 \alias{fit_glm}
 \title{Fit one negative-binomial GLM per gene}
 \usage{
-fit_glm(Y, X, offset = NULL, dispersion = 0, weights = NULL, device = NULL)
+fit_glm(
+  Y,
+  X,
+  offset = NULL,
+  dispersion = 0,
+  weights = NULL,
+  device = NULL,
+  precision = c("double", "single")
+)
 }
 \arguments{
 \item{Y}{Counts, genes in rows and cells (samples) in columns.}
@@ -19,6 +27,11 @@ fit_glm(Y, X, offset = NULL, dispersion = 0, weights = NULL, device = NULL)
 \item{weights}{Per-cell prior weights.}
 
 \item{device}{Passed to \code{\link[xlaport:xla_kernel]{xlaport::xla_kernel()}}; \code{NULL} uses \code{PJRT_PLATFORM}.}
+
+\item{precision}{\code{"double"} (default) or \code{"single"}: the float64 or float32
+kernels. Single precision is for GPUs, whose float64 rate is a fraction of
+their float32 one (1/64 on consumer cards); coefficients then carry float32
+rounding (about 1e-6 relative), and results come back as R doubles either way.}
 }
 \value{
 A list: \code{Beta} (genes x coefficients), \code{deviance}, \code{converged} and

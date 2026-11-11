@@ -8,6 +8,7 @@ differential-expression code, not a DE tool.
 fit <- glmjax::fit_glm(Y, X, offset = log(size_factors), dispersion = 0.1)
 fit$Beta        # genes x coefficients
 fit$deviance; fit$converged; fit$iterations
+fit <- glmjax::fit_glm(Y, X, dispersion = 0.1, precision = "single")  # float32 kernels, for GPUs
 ```
 
 `Y` is genes x cells (dense, or anything `as.matrix()` handles per chunk, such as
@@ -37,7 +38,8 @@ which leaves the result unchanged.
 ## Limits
 
 - At most 12 design columns and 3,145,728 cells.
-- float64 on CPU is what the tests cover. `PJRT_PLATFORM=cuda` is untested from R.
+- The tests run on CPU and CUDA (`PJRT_PLATFORM=cuda`), in float64 and float32
+  (`precision = "single"`, coefficients to about 1e-6 relative).
 - Per-cell offsets and weights only (no gene x cell matrices).
 - No dispersion estimation yet: supply it (edgeR, glmGamPoi) or fit at a fixed value.
 - Genes are fitted 16 to 256 at a time and a chunk runs until its slowest gene
@@ -49,6 +51,10 @@ which leaves the result unchanged.
   with cell, column and gene padding all in play.
 - Hao PBMC, 2,000 genes x 10,000 cells, 10 covariates: coefficients match the
   Python package to 2.8e-14; 2.6 s against 1.6 s in Python on the same 16 cores.
+- 10x Visium HD lung, 256 genes x 443,765 bins, Poisson with an offset: genes per
+  second 6.6 (CPU, double), 10.2 (CPU, single), 17.6 (RTX 2000 Ada laptop GPU,
+  double), 35 (same GPU, single); intercepts match the closed form to 1e-9 in
+  double and 1e-5 in single.
 
 ## Rebuilding the kernels
 

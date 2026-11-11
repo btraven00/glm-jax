@@ -1,8 +1,10 @@
 """Export the glm-jax kernels the R package ships: JAX_PLATFORMS=cpu python r/data-raw/export_kernels.py
 
 Needs glm_jax and the xlaport exporter (pip install "git+https://github.com/btraven00/xlaport#subdirectory=python").
-Writes r/inst/xla/nb_fit_n<N>.mlir and manifest.json. The R side reads every shape
-from the manifest, so the ladders below can change without touching R.
+Writes r/inst/xla/nb_fit_n<N>.mlir (float64), nb_fit_f32_n<N>.mlir (float32) and
+manifest.json. The R side reads every shape and dtype from the manifest, so the ladders
+below can change without touching R. float32 is for GPUs, whose float64 rate is a
+fraction of their float32 one (1/64 on consumer cards).
 """
 import os
 import shutil
@@ -35,10 +37,11 @@ def nb_fit(Y, X, offset, weights, phi):
 
 if __name__ == "__main__":
     shutil.rmtree(OUT, ignore_errors=True)
-    S = lambda *shape: jax.ShapeDtypeStruct(shape, jnp.float64)
-    for n in CELLS:
-        g = genes(n)
-        export(nb_fit, [S(g, n), S(n, P), S(n), S(n), S(g)], name=f"nb_fit_n{n}", out=OUT,
-               arg_names=["Y", "X", "offset", "weights", "phi"],
-               out_names=["coef", "deviance", "converged", "n_iter"])
-    print(f"{len(CELLS)} kernels, cells {CELLS[0]}..{CELLS[-1]}")
+    for dtype, tag in [(jnp.float64, ""), (jnp.float32, "f32_")]:
+        S = lambda *shape: jax.ShapeDtypeStruct(shape, dtype)
+        for n in CELLS:
+            g = genes(n)
+            export(nb_fit, [S(g, n), S(n, P), S(n), S(n), S(g)], name=f"nb_fit_{tag}n{n}", out=OUT,
+                   arg_names=["Y", "X", "offset", "weights", "phi"],
+                   out_names=["coef", "deviance", "converged", "n_iter"])
+    print(f"2 x {len(CELLS)} kernels (f64, f32), cells {CELLS[0]}..{CELLS[-1]}")

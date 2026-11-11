@@ -35,6 +35,16 @@ test_that("weights and sparse input", {
   expect_equal(fit_glm(S, X, offset = off)$Beta, fit_glm(Y[1:5, ], X, offset = off)$Beta)
 })
 
+test_that("single precision runs the f32 kernels, to float32 accuracy", {
+  fit <- fit_glm(Y, X, offset = off, dispersion = 0.1, precision = "single")
+  dbl <- fit_glm(Y, X, offset = off, dispersion = 0.1)
+  expect_true(all(fit$converged))
+  expect_type(fit$Beta, "double")
+  expect_equal(fit$Beta, dbl$Beta, tolerance = 1e-4)
+  expect_false(isTRUE(all.equal(fit$Beta, dbl$Beta, tolerance = 1e-12)))  # really float32
+  expect_error(fit_glm(Y, X, precision = "half"), "should be one of")
+})
+
 test_that("bad input is refused", {
   expect_error(fit_glm(Y, X[-1, ]), "X has 49 rows, Y has 50 columns")
   expect_error(fit_glm(Y, cbind(X, X[, 1])), "not full rank")

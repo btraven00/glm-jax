@@ -17,6 +17,10 @@
 #'   `mu + dispersion * mu^2`). 0, the default, is a Poisson fit.
 #' @param weights Per-cell prior weights.
 #' @param device Passed to [xlaport::xla_kernel()]; `NULL` uses `PJRT_PLATFORM`.
+#' @param precision `"double"` (default) or `"single"`: the float64 or float32
+#'   kernels. Single precision is for GPUs, whose float64 rate is a fraction of
+#'   their float32 one (1/64 on consumer cards); coefficients then carry float32
+#'   rounding (about 1e-6 relative), and results come back as R doubles either way.
 #' @return A list: `Beta` (genes x coefficients), `deviance`, `converged` and
 #'   `iterations`, one entry per gene. Check `converged` on hard data.
 #' @examples
@@ -27,7 +31,9 @@
 #' head(fit$Beta)
 #' }
 #' @export
-fit_glm <- function(Y, X, offset = NULL, dispersion = 0, weights = NULL, device = NULL) {
+fit_glm <- function(Y, X, offset = NULL, dispersion = 0, weights = NULL, device = NULL,
+                    precision = c("double", "single")) {
+  precision <- match.arg(precision)
   X <- as.matrix(X)
   G <- nrow(Y); N <- ncol(Y); p <- ncol(X)
   if (is.null(offset)) offset <- numeric(N)
@@ -45,6 +51,9 @@ fit_glm <- function(Y, X, offset = NULL, dispersion = 0, weights = NULL, device 
 
   # every shape comes from the manifest: Y is [gene chunk, cell bucket], X is [cell bucket, max p]
   ks <- xlaport::xla_kernels(system.file("xla", package = "glmjax"), device)
+  dtype <- if (precision == "double") "f64" else "f32"
+  ks <- Filter(function(k) identical(attr(k, "spec")$inputs[[1]]$dtype, dtype), ks)
+  if (length(ks) == 0) stop("no ", dtype, " kernels in this build of glmjax")
   shape <- function(k, i) as.integer(unlist(attr(k, "spec")$inputs[[i]]$shape))
   cells <- vapply(ks, function(k) shape(k, 1)[2], 0L)
   P <- shape(ks[[1]], 2)[2]
