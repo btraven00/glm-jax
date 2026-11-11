@@ -11,7 +11,7 @@ Encoding: UTF-8
 Imports: xlaport
 URL: https://github.com/btraven00/glm-jax
 BugReports: https://github.com/btraven00/glm-jax/issues
-Suggests: knitr, MASS, Matrix, picklerick (>= 0.7.0), rmarkdown, testthat (>= 3.0.0)
+Suggests: knitr, MASS, Matrix, picklerick (>= 0.6.1), rmarkdown, testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Remotes: btraven00/xlaport, btraven00/scx/r/picklerick
 Additional_repositories: https://btraven00.r-universe.dev, https://r-xla.r-universe.dev
