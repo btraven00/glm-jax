@@ -16,10 +16,14 @@ a sparse `Matrix`); `dispersion` is one value or one per gene, and 0 is Poisson.
 ## Install
 
 ```r
-options(repos = c("https://btraven00.r-universe.dev", "https://r-xla.r-universe.dev", getOption("repos")))
-install.packages("glmjax")
+install.packages("pjrt", repos = c("https://r-xla.r-universe.dev", getOption("repos")))  # not on CRAN
+install.packages("remotes")
+remotes::install_github("btraven00/glm-jax", subdir = "r")   # also installs xlaport from GitHub
 pjrt::install_pjrt()   # once: downloads the XLA CPU plugin (64 MB), plus CUDA if an NVIDIA GPU is found
 ```
+
+`pjrt` builds from source on Linux and needs the protobuf compiler
+(`protobuf-compiler` and `libprotobuf-dev` on Debian/Ubuntu).
 
 ## How it works
 

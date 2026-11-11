@@ -29,7 +29,7 @@ pip install -e .            # or: pixi run test
 
 [`r/`](r/) is the `glmjax` R package: the same fit kernel, exported as StableHLO
 and run through [`xlaport`](https://github.com/btraven00/xlaport) and `pjrt`,
-with no Python at runtime.
+with no Python at runtime. Install and usage are in [r/README.md](r/README.md).
 
 ## Layout
 
