@@ -11,3 +11,10 @@ scratch/
 evolve/candidates/
 evolve/reference*.npz
 evolve/best*.py
+# evolve run outputs
+evolve/*.log
+evolve/batch/
+# R build outputs
+*.Rcheck/
+glmjax_*.tar.gz
+.Rhistory

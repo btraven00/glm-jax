@@ -8,7 +8,7 @@
 # IRLS start (two GEMMs + tiny solves), and glm_gp end to end with the initialiser swapped in.
 # Findings (2026-10-25): glmGamPoi is ~1.4x faster per iteration than edgeR but needs 13
 # iterations vs 5 because of its unweighted log-OLS start; with the one-step IRLS start it
-# converges in 4 and beats edgeR. See ~/phd/worklog/glmgampoi-parity-and-pr-ideas.md.
+# converges in 4 and beats edgeR.
 
 suppressPackageStartupMessages({library(glmGamPoi); library(edgeR)}); d <- commandArgs(TRUE)[1]; lab <- commandArgs(TRUE)[2]
 dims <- scan(file.path(d, "dims.txt"), quiet = TRUE); N <- dims[1]; G <- dims[2]; P <- dims[3]; PHI <- 0.1
