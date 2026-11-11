@@ -27,7 +27,7 @@ matrix or a converted copy on disk:
 ## Setup
 
 ```{r}
-pak::pak("btraven00/scx/r/picklerick")  # gene_blocks() is new after picklerick 0.6.0
+pak::pak("btraven00/scx/r/picklerick")  # gene_blocks() needs picklerick >= 0.7.0
 library(picklerick)
 library(Matrix)
 Sys.setenv(PJRT_PLATFORM = "cuda")      # before the first fit; omit for CPU
