@@ -34,12 +34,12 @@
 fit_glm <- function(Y, X, offset = NULL, dispersion = 0, weights = NULL, device = NULL,
                     precision = c("double", "single")) {
   precision <- match.arg(precision)
+  if (length(dim(Y)) != 2 || nrow(Y) < 1) stop("Y must be a matrix (genes x cells) with at least one row")
   X <- as.matrix(X)
   G <- nrow(Y); N <- ncol(Y); p <- ncol(X)
   if (is.null(offset)) offset <- numeric(N)
   if (is.null(weights)) weights <- rep(1, N)
   if (length(dispersion) == 1) dispersion <- rep(dispersion, G)
-  if (is.null(G) || G < 1) stop("Y must be a matrix with at least one row")
   if (nrow(X) != N) stop(sprintf("X has %d rows, Y has %d columns", nrow(X), N))
   if (length(offset) != N || length(weights) != N) stop("offset and weights need one value per column of Y")
   if (length(dispersion) != G) stop("dispersion needs one value, or one per row of Y")
