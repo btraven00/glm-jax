@@ -7,6 +7,7 @@ ref <- function(family, rows = 1:G, w = rep(1, N)) t(sapply(rows, function(g)
   coef(glm.fit(X, Y[g, ], weights = w, offset = off, family = family, control = glm.control(epsilon = 1e-12)))))
 
 test_that("Poisson fit matches glm.fit", {
+  skip_if_no_pjrt()
   fit <- fit_glm(Y, X, offset = off)
   expect_true(all(fit$converged))
   expect_true(is.integer(fit$iterations) && all(fit$iterations > 0))
@@ -17,6 +18,7 @@ test_that("Poisson fit matches glm.fit", {
 })
 
 test_that("NB fit matches glm.fit at a fixed dispersion", {
+  skip_if_no_pjrt()
   skip_if_not_installed("MASS")
   fit <- fit_glm(Y, X, offset = off, dispersion = 0.1)
   expect_equal(unname(fit$Beta), unname(ref(MASS::negative.binomial(10))), tolerance = 1e-7)
@@ -27,6 +29,7 @@ test_that("NB fit matches glm.fit at a fixed dispersion", {
 })
 
 test_that("weights and sparse input", {
+  skip_if_no_pjrt()
   w <- rep(c(1, 0, 2), length.out = N)
   expect_equal(unname(fit_glm(Y[1:5, ], X, offset = off, weights = w)$Beta), unname(ref(poisson(), 1:5, w)),
                tolerance = 1e-7)
@@ -36,6 +39,7 @@ test_that("weights and sparse input", {
 })
 
 test_that("single precision runs the f32 kernels, to float32 accuracy", {
+  skip_if_no_pjrt()
   fit <- fit_glm(Y, X, offset = off, dispersion = 0.1, precision = "single")
   dbl <- fit_glm(Y, X, offset = off, dispersion = 0.1)
   expect_true(all(fit$converged))
